@@ -1,0 +1,8 @@
+require('dotenv').config();
+
+module.exports = {
+  PORT: process.env.PORT || 5000,
+  DATABASE_URL: process.env.DATABASE_URL,
+  JWT_SECRET: process.env.JWT_SECRET || 'change_me_in_real_env',
+  MAPBOX_ACCESS_TOKEN: process.env.MAPBOX_ACCESS_TOKEN || ''
+};

@@ -1,0 +1,99 @@
+{
+  "info": {
+    "name": "Travel Spot Finder API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000" },
+    { "key": "adminToken", "value": "" },
+    { "key": "userToken", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Demo User\",\n  \"email\": \"demo.user@example.com\",\n  \"password\": \"123456\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login Admin",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@travelspot.com\",\n  \"password\": \"admin123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Me",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/api/auth/me"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Categories",
+      "item": [
+        {
+          "name": "Get Categories",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/categories" }
+        }
+      ]
+    },
+    {
+      "name": "Spots",
+      "item": [
+        {
+          "name": "Create Spot",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/api/spots",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Hoi An Ancient Town\",\n  \"description\": \"Historic tourist destination\",\n  \"address\": \"Hoi An, Quang Nam\",\n  \"city\": \"Hoi An\",\n  \"latitude\": 15.8801,\n  \"longitude\": 108.3380,\n  \"category_id\": 3,\n  \"opening_hours\": \"08:00-22:00\",\n  \"ticket_price\": 120000\n}"
+            }
+          }
+        },
+        {
+          "name": "Search Spots",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/spots/search?keyword=Beach" }
+        },
+        {
+          "name": "Nearby Spots",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/spots/nearby?lat=16.0471&lng=108.2068&radius=10" }
+        }
+      ]
+    },
+    {
+      "name": "Mapbox",
+      "item": [
+        {
+          "name": "Get Directions",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/map/directions?origin_lat=16.0471&origin_lng=108.2068&destination_lat=15.8801&destination_lng=108.3380"
+          }
+        }
+      ]
+    }
+  ]
+}
