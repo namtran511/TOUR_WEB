@@ -106,6 +106,9 @@ export async function renderHome(container) {
   `;
 
   const spotsGrid = document.getElementById('spots-grid');
+  let currentMarkers = [];
+  let map = null;
+
   if (!MAPBOX_TOKEN) {
     document.getElementById('home-map').innerHTML = `
       <div class="empty-state" style="height:100%; display:grid; place-items:center;">
@@ -121,14 +124,12 @@ export async function renderHome(container) {
   }
 
   mapboxgl.accessToken = MAPBOX_TOKEN;
-  const map = new mapboxgl.Map({
+  map = new mapboxgl.Map({
     container: 'home-map',
     style: 'mapbox://styles/mapbox/streets-v12',
     center: [105.8342, 18.0],
     zoom: 5,
   });
-
-  let currentMarkers = [];
 
   async function loadSpots(query = '', sortBy = '', sortOrder = '') {
     spotsGrid.innerHTML = '<div class="loader"></div>';
@@ -153,7 +154,7 @@ export async function renderHome(container) {
       let hasValidCoords = false;
 
       spotsGrid.innerHTML = spots.map((spot) => {
-        if (spot.longitude && spot.latitude) {
+        if (map && spot.longitude && spot.latitude) {
           hasValidCoords = true;
           bounds.extend([spot.longitude, spot.latitude]);
 
@@ -194,7 +195,7 @@ export async function renderHome(container) {
         `;
       }).join('');
 
-      if (hasValidCoords) {
+      if (map && hasValidCoords) {
         map.fitBounds(bounds, { padding: 60, maxZoom: 13 });
       }
     } catch (error) {
