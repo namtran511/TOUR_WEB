@@ -14,14 +14,14 @@ async function parseResponse(res, fallbackMessage) {
 
   let data = null;
   if (rawText) {
-    if (contentType.includes('application/json')) {
-      try {
-        data = JSON.parse(rawText);
-      } catch (error) {
-        throw new Error('Phản hồi từ server không hợp lệ. Hãy kiểm tra backend.');
-      }
-    } else {
-      throw new Error('Backend không trả về JSON. Có thể API đang không chạy.');
+    if (!contentType.includes('application/json')) {
+      throw new Error('Backend không trả về JSON hợp lệ.');
+    }
+
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      throw new Error('Không đọc được phản hồi từ server.');
     }
   }
 
@@ -43,7 +43,7 @@ async function request(path, options = {}, fallbackMessage = 'Request failed') {
         ...(options.headers || {}),
       },
     });
-  } catch (error) {
+  } catch {
     throw new Error('Không kết nối được tới backend. Hãy kiểm tra server local.');
   }
 
@@ -103,7 +103,6 @@ export const api = {
   },
 
   addFavorite: async (spotId) => request(`/favorites/${spotId}`, { method: 'POST' }, 'Thêm yêu thích thất bại'),
-
   removeFavorite: async (spotId) => request(`/favorites/${spotId}`, { method: 'DELETE' }, 'Bỏ yêu thích thất bại'),
 
   getCategories: async () => {
@@ -119,8 +118,6 @@ export const api = {
     return data.data;
   },
 
-  deleteSpot: async (id) => request(`/spots/${id}`, { method: 'DELETE' }, 'Xóa địa điểm thất bại'),
-
   updateSpot: async (id, payload) => {
     const data = await request(`/spots/${id}`, {
       method: 'PUT',
@@ -128,6 +125,8 @@ export const api = {
     }, 'Cập nhật địa điểm thất bại');
     return data.data;
   },
+
+  deleteSpot: async (id) => request(`/spots/${id}`, { method: 'DELETE' }, 'Xóa địa điểm thất bại'),
 
   createBooking: async (payload) => {
     const data = await request('/bookings', {
@@ -151,4 +150,29 @@ export const api = {
     method: 'PATCH',
     body: JSON.stringify({ status }),
   }, 'Cập nhật trạng thái thất bại'),
+
+  payBooking: async (id, payload = {}) => {
+    const body = typeof payload === 'string'
+      ? { transaction_code: payload || undefined }
+      : { ...payload };
+
+    const data = await request(`/bookings/${id}/pay`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }, 'Thanh toán booking thất bại');
+    return data.data;
+  },
+
+  cancelBooking: async (id, reason = '') => {
+    const data = await request(`/bookings/${id}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ reason: reason || undefined }),
+    }, 'Hủy booking thất bại');
+    return data.data;
+  },
+
+  getBookingTicket: async (id) => {
+    const data = await request(`/bookings/${id}/ticket`, {}, 'Không lấy được ticket');
+    return data.data;
+  },
 };

@@ -26,24 +26,25 @@ export async function initRouter() {
 
 function route() {
   const hash = window.location.hash || '#/';
+  const routeHash = hash.split('?')[0];
   const app = document.getElementById('app');
   const nav = document.getElementById('nav-container');
 
   nav.innerHTML = renderNavbar();
   app.className = '';
 
-  if (hash === '#/') {
+  if (routeHash === '#/') {
     renderHome(app);
-  } else if (hash.startsWith('#/spot/')) {
-    const id = hash.split('/')[2];
+  } else if (routeHash.startsWith('#/spot/')) {
+    const id = routeHash.split('/')[2];
     renderSpotDetail(app, id);
-  } else if (hash === '#/login') {
+  } else if (routeHash === '#/login') {
     renderLogin(app);
-  } else if (hash === '#/register') {
+  } else if (routeHash === '#/register') {
     renderRegister(app);
-  } else if (hash === '#/admin') {
+  } else if (routeHash === '#/admin') {
     renderAdmin(app);
-  } else if (hash === '#/bookings') {
+  } else if (routeHash === '#/bookings') {
     renderBookings(app);
   } else {
     app.innerHTML = `

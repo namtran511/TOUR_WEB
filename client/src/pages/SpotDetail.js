@@ -1,4 +1,5 @@
 import { api } from '../api.js';
+import { attachImageFallbacks, resolveImageUrl } from '../image.js';
 import { showToast } from '../router.js';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -9,6 +10,49 @@ const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
 function formatMoney(value, suffix = ' VND') {
   if (value === null || value === undefined || value === '') return 'Liên hệ';
   return `${parseInt(value, 10).toLocaleString('vi-VN')}${suffix}`;
+}
+
+function toDatetimeLocalValue(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  const offset = date.getTimezoneOffset();
+  return new Date(date.getTime() - offset * 60 * 1000).toISOString().slice(0, 16);
+}
+
+function toDateInputValue(value) {
+  if (!value) return '';
+  return toDatetimeLocalValue(value).slice(0, 10);
+}
+
+function formatCalendarDate(value) {
+  if (!value) return '';
+  return new Date(`${value}T00:00:00`).toLocaleDateString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+  });
+}
+
+function formatCalendarWeekday(value) {
+  if (!value) return '';
+  return new Date(`${value}T00:00:00`).toLocaleDateString('vi-VN', {
+    weekday: 'short',
+  });
+}
+
+function formatTimeRange(start, end) {
+  if (!start || !end) return '';
+  return `${new Date(start).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - ${new Date(end).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
+}
+
+function formatDateTimeDisplay(value) {
+  if (!value) return 'Chưa chọn';
+  return new Date(value).toLocaleString('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 }
 
 function reviewList(reviews) {
@@ -22,57 +66,66 @@ function reviewList(reviews) {
         <strong>${review.user.full_name || 'Khách'}</strong>
         <span class="chip"><i class='bx bxs-star'></i> ${review.rating}</span>
       </div>
-      ${review.trip_duration ? `<p class="meta" style="margin-top:6px;">Đã trải nghiệm ${review.trip_duration}</p>` : ''}
-      <p style="margin-top:10px;">${review.comment}</p>
+      <p style="margin-top:10px;">${review.comment || 'Không có nhận xét.'}</p>
     </div>
   `).join('');
 }
 
 function packageMarkup(spot) {
-  if (spot.packages && spot.packages.length) {
-    return `
-      <div class="list-stack">
-        ${spot.packages.map((pkg) => `
-          <article class="card">
-            <div class="inline-actions" style="justify-content:space-between;">
-              <div>
-                <h4>${pkg.name}</h4>
-                <p class="meta" style="margin-top:6px;">${pkg.description || 'Gói dịch vụ dành cho khách muốn có lịch trình trọn vẹn.'}</p>
-              </div>
-              <span class="price-tag">${formatMoney(pkg.price)}</span>
-            </div>
-          </article>
-        `).join('')}
-      </div>
-    `;
+  if (!spot.packages?.length) {
+    return `<div class="card"><p>Giá cơ bản: <span class="price-tag">${formatMoney(spot.ticket_price)}</span></p></div>`;
   }
 
-  return `<div class="card"><p>Giá cơ bản: <span class="price-tag">${formatMoney(spot.ticket_price)}</span></p></div>`;
+  return `
+    <div class="list-stack">
+      ${spot.packages.map((pkg) => `
+        <article class="card">
+          <div class="inline-actions" style="justify-content:space-between; align-items:flex-start; gap:24px;">
+            <div>
+              <h4>${pkg.name}</h4>
+              <p class="meta" style="margin-top:6px;">${pkg.description || 'Gói tour dành cho khách muốn có lịch trình trọn vẹn.'}</p>
+              <div class="chip-row" style="margin-top:12px;">
+                ${pkg.duration_minutes ? `<span class="chip"><i class='bx bx-time-five'></i> ${pkg.duration_minutes} phút</span>` : ''}
+                ${pkg.meeting_point ? `<span class="chip"><i class='bx bx-map-pin'></i> ${pkg.meeting_point}</span>` : ''}
+                <span class="chip"><i class='bx bx-undo'></i> Hủy miễn phí trước ${pkg.free_cancel_before_hours}h</span>
+                ${pkg.pickup_included ? `<span class="chip"><i class='bx bx-car'></i> Có pickup</span>` : ''}
+              </div>
+              ${pkg.pickup_note ? `<p class="meta" style="margin-top:10px;">Pickup: ${pkg.pickup_note}</p>` : ''}
+            </div>
+            <span class="price-tag">${formatMoney(pkg.price, ' VND / khách / ngày')}</span>
+          </div>
+        </article>
+      `).join('')}
+    </div>
+  `;
 }
 
 function roomMarkup(spot) {
-  if (spot.rooms && spot.rooms.length) {
-    return `
-      <div class="list-stack">
-        ${spot.rooms.map((room) => `
-          <article class="card">
-            <div class="inline-actions" style="justify-content:space-between; align-items:flex-start;">
-              <div>
-                <h4>${room.name}</h4>
-                <p class="meta" style="margin-top:6px;">${room.description || 'Hạng phòng được quản lý theo tồn kho.'}</p>
-              </div>
-              <div style="text-align:right;">
-                <div class="price-tag">${formatMoney(room.price, ' VND / đêm')}</div>
-                <div class="meta" style="margin-top:6px;">${room.quantity > 0 ? `Còn ${room.quantity} phòng` : 'Hết phòng'}</div>
-              </div>
-            </div>
-          </article>
-        `).join('')}
-      </div>
-    `;
+  if (!spot.rooms?.length) {
+    return '<div class="card"><p>Không có dữ liệu hạng phòng cho địa điểm này.</p></div>';
   }
 
-  return '<div class="card"><p>Không có dữ liệu hạng phòng cho địa điểm này.</p></div>';
+  return `
+    <div class="list-stack">
+      ${spot.rooms.map((room) => `
+        <article class="card">
+          <div class="inline-actions" style="justify-content:space-between; align-items:flex-start; gap:24px;">
+            <div>
+              <h4>${room.name}</h4>
+              <p class="meta" style="margin-top:6px;">${room.description || 'Hạng phòng được quản lý theo tồn kho.'}</p>
+              <div class="chip-row" style="margin-top:12px;">
+                <span class="chip"><i class='bx bx-bed'></i> Còn ${room.quantity} phòng</span>
+                <span class="chip"><i class='bx bx-undo'></i> Hủy miễn phí trước ${room.free_cancel_before_hours}h</span>
+              </div>
+            </div>
+            <div style="text-align:right;">
+              <div class="price-tag">${formatMoney(room.price, ' VND / đêm')}</div>
+            </div>
+          </div>
+        </article>
+      `).join('')}
+    </div>
+  `;
 }
 
 export async function renderSpotDetail(container, id) {
@@ -83,19 +136,20 @@ export async function renderSpotDetail(container, id) {
     const reviews = await api.getReviews(id);
     const favorites = window.currentUser ? await api.getFavorites() : [];
     const isFavorite = favorites.some((favorite) => favorite.spot_id == id);
-    const imageUrl = spot.images && spot.images[0] ? spot.images[0] : spot.image_url || FALLBACK_IMAGE;
+    const imageUrl = resolveImageUrl(spot, FALLBACK_IMAGE);
     const averageRating = spot.averageRating || spot.average_rating || 'Chưa có';
+    const departures = (spot.departures || []).filter((item) => item.is_active);
 
     container.innerHTML = `
       <section class="page">
         <article class="card detail-hero">
-          <img src="${imageUrl}" class="detail-hero-image" alt="${spot.name}" />
+          <img src="${imageUrl}" data-fallback-src="${FALLBACK_IMAGE}" class="detail-hero-image" alt="${spot.name}" />
           <div class="detail-hero-copy">
             <p class="eyebrow">Hồ sơ điểm đến</p>
             <div class="page-header">
               <div>
                 <h1>${spot.name}</h1>
-                <p class="lede" style="margin-top:12px;">${spot.description || 'Điểm đến này hiện đã có vị trí bản đồ, thông tin đặt chỗ và khu vực đánh giá từ cộng đồng.'}</p>
+                <p class="lede" style="margin-top:12px;">${spot.description || 'Điểm đến này đã có thông tin tour, lịch khởi hành và khu vực đánh giá từ cộng đồng.'}</p>
               </div>
               <div class="chip-row" style="justify-content:flex-end;">
                 <span class="chip"><i class='bx bx-map-pin'></i> ${spot.address}, ${spot.city}</span>
@@ -122,7 +176,7 @@ export async function renderSpotDetail(container, id) {
                 <div class="card">
                   <p class="eyebrow">Thành phố</p>
                   <h3>${spot.city}</h3>
-                  <p>${spot.country || 'Việt Nam'}</p>
+                  <p>Việt Nam</p>
                 </div>
                 <div class="card">
                   <p class="eyebrow">Giá cơ bản</p>
@@ -184,7 +238,7 @@ export async function renderSpotDetail(container, id) {
                       <textarea id="review-comment" class="form-control" placeholder="Bạn ấn tượng điều gì ở điểm đến này?"></textarea>
                     </div>
                     <div class="form-actions">
-                      <button id="submit-review-btn" class="button"><i class='bx bx-message-square-dots'></i> Gửi đánh giá</button>
+                      <button id="submit-review-btn" class="button"><i class='bx bx-message-square-dots'></i> Gi Đánh giá</button>
                     </div>
                   </div>
                 </div>
@@ -198,64 +252,140 @@ export async function renderSpotDetail(container, id) {
 
           <aside class="page">
             ${window.currentUser && window.currentUser.role !== 'ADMIN' ? `
-              <section class="panel sticky-panel">
+              <section class="panel">
                 <div class="section-header">
                   <div>
                     <p class="eyebrow">Đặt chỗ</p>
                     <h2>Đặt tour hoặc phòng.</h2>
+                    <p class="meta" style="margin-top:8px;">Chọn thời gian đi trước, hệ thống sẽ hiển thời gian kết thúc và tính giá tương ứng.</p>
                   </div>
-                  <button type="submit" form="booking-form" id="booking-submit-btn" class="button" disabled>Chọn tour hoặc phòng</button>
+                  <button type="submit" form="booking-form" id="booking-submit-btn" class="button" disabled>Tạo booking</button>
                 </div>
-                <form id="booking-form" class="form-grid">
-                  ${spot.packages && spot.packages.length ? `
+
+                ${departures.length ? `
+                  <form id="booking-form" class="form-grid">
                     <div class="form-group">
-                      <label class="form-label" for="booking-package">Gói tour</label>
-                      <select id="booking-package" class="form-control">
-                        <option value="">Không chọn tour</option>
-                        ${spot.packages.map((pkg) => `<option value="${pkg.id}" data-price="${pkg.price}">${pkg.name} - ${formatMoney(pkg.price)}</option>`).join('')}
+                      <span class="form-label">Chọn ngày đi</span>
+                      <div id="booking-date-grid" class="booking-choice-grid booking-date-grid"></div>
+                      <p class="form-hint" id="booking-date-hint">Chọn ngày để xem các khung giờ còn chỗ.</p>
+                    </div>
+
+                    <div class="form-group">
+                      <span class="form-label">Chọn khung giờ khởi hành</span>
+                      <div id="booking-slot-grid" class="booking-choice-grid booking-slot-grid"></div>
+                      <p class="form-hint" id="booking-slot-hint">Bấm vào một slot giờ để khóa lịch trình.</p>
+                    </div>
+
+                    <div class="card booking-summary">
+                      <div class="booking-summary-item">
+                        <p class="eyebrow">Khởi hành</p>
+                        <strong id="booking-start-display">Chưa chọn</strong>
+                      </div>
+                      <div class="booking-summary-item">
+                        <p class="eyebrow">Kết thúc dự kiến</p>
+                        <strong id="booking-end-display">Chưa chọn</strong>
+                      </div>
+                    </div>
+
+                    <div class="form-group" id="booking-end-group" style="display:none;">
+                      <label class="form-label" for="booking-end-date">Trả phòng / kết thúc</label>
+                      <input type="datetime-local" id="booking-end-date" class="form-control" />
+                      <p class="form-hint">Chỉ hiện khi bạn chọn phòng hoặc combo tour + phòng. Giá lưu trú sẽ tính theo mốc này.</p>
+                    </div>
+
+                    ${spot.packages?.length ? `
+                      <div class="form-group">
+                        <label class="form-label" for="booking-package">Gói tour</label>
+                        <select id="booking-package" class="form-control">
+                          <option value="">Không chọn tour</option>
+                          ${spot.packages.map((pkg) => `
+                            <option
+                              value="${pkg.id}"
+                              data-price="${pkg.price}"
+                              data-pickup="${pkg.pickup_included}"
+                              data-meeting="${pkg.meeting_point || ''}"
+                              data-cancel="${pkg.free_cancel_before_hours}"
+                            >
+                              ${pkg.name} - ${formatMoney(pkg.price, ' VND / khách / ngày')}
+                            </option>
+                          `).join('')}
+                        </select>
+                      </div>
+                      <div class="form-group" id="booking-tour-days-group" style="display:none;">
+                        <label class="form-label" for="booking-tour-days">Số ngày tour</label>
+                        <input type="number" id="booking-tour-days" min="1" max="30" value="1" class="form-control" />
+                        <p class="form-hint">Giá tour sẽ tính theo số ngày x số khách.</p>
+                      </div>
+                    ` : ''}
+
+                    ${spot.rooms?.length ? `
+                      <div class="form-group">
+                        <label class="form-label" for="booking-room">Hạng phòng</label>
+                        <select id="booking-room" class="form-control">
+                          <option value="">Không đặt phòng</option>
+                          ${spot.rooms.map((room) => `
+                            <option value="${room.id}" data-price="${room.price}" data-qty="${room.quantity}">
+                              ${room.name} - ${formatMoney(room.price, ' VND / đêm')}
+                            </option>
+                          `).join('')}
+                        </select>
+                      </div>
+                      <div class="form-group">
+                        <label class="form-label" for="booking-room-count">Số lượng phòng</label>
+                        <input type="number" id="booking-room-count" min="1" max="20" value="1" class="form-control" />
+                      </div>
+                    ` : ''}
+
+                    <div class="form-group">
+                      <label class="form-label" for="booking-guests">Số khách</label>
+                      <input type="number" id="booking-guests" min="1" value="1" class="form-control" required />
+                    </div>
+
+                    <div class="form-group">
+                      <label class="form-label" for="booking-payment-method">Thanh toán</label>
+                      <select id="booking-payment-method" class="form-control">
+                        <option value="PAY_NOW">Thanh toán ngay</option>
+                        <option value="PAY_LATER">Thanh toán sau</option>
+                        <option value="PAY_AT_DESTINATION">Thanh toán ti im n</option>
                       </select>
                     </div>
-                  ` : ''}
 
-                  ${spot.rooms && spot.rooms.length ? `
                     <div class="form-group">
-                      <label class="form-label" for="booking-room">Hạng phòng</label>
-                      <select id="booking-room" class="form-control">
-                        <option value="">Không đặt phòng</option>
-                        ${spot.rooms.map((room) => `<option value="${room.id}" data-price="${room.price}" data-qty="${room.quantity}" ${room.quantity <= 0 ? 'disabled' : ''}>${room.name} - ${formatMoney(room.price, ' VND / đêm')} ${room.quantity <= 0 ? '(Hết)' : `(Còn ${room.quantity})`}</option>`).join('')}
-                      </select>
+                      <label class="form-label" for="booking-voucher">Voucher</label>
+                      <input type="text" id="booking-voucher" class="form-control" placeholder="Ví dụ: SUMMER10" />
                     </div>
-                    <div class="form-group">
-                      <label class="form-label" for="booking-room-count">Số lượng phòng</label>
-                      <input type="number" id="booking-room-count" min="1" max="20" value="1" class="form-control" />
-                    </div>
-                  ` : ''}
 
-                  <div class="form-group">
-                    <label class="form-label" for="booking-date">Ngày đi</label>
-                    <input type="datetime-local" id="booking-date" class="form-control" required />
+                    <div class="form-group">
+                      <label class="form-label" for="booking-notes">Ghi chú</label>
+                      <textarea id="booking-notes" class="form-control" placeholder="Ví dụ: ăn chay, cần hỗ trợ đặc biệt..."></textarea>
+                    </div>
+
+                    <label class="chip" style="width:max-content;">
+                      <input type="checkbox" id="booking-pickup-requested" style="margin-right:8px;" />
+                      Yêu cầu pickup
+                    </label>
+
+                    <div class="form-group" id="pickup-address-group" style="display:none;">
+                      <label class="form-label" for="booking-pickup-address">Địa chỉ pickup</label>
+                      <input type="text" id="booking-pickup-address" class="form-control" placeholder="Nhập địa chỉ đón" />
+                    </div>
+
+                    <div class="card">
+                      <p class="eyebrow">Tổng tạm tính</p>
+                      <div class="metric-value" id="booking-total-price">0 VND</div>
+                      <p class="meta" id="booking-policy-note" style="margin-top:10px;">Chọn departure và ít nhất một dịch vụ để xem tổng giá.</p>
+                    </div>
+                  </form>
+                ` : `
+                  <div class="empty-state">
+                    <h3>Chưa có lịch khởi hành</h3>
+                    <p>Admin cần thêm departure trước khi người dùng có thể đặt chỗ.</p>
                   </div>
-                  <div class="form-group">
-                    <label class="form-label" for="booking-end-date">Ngày về</label>
-                    <input type="datetime-local" id="booking-end-date" class="form-control" required />
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="booking-guests">Số khách</label>
-                    <input type="number" id="booking-guests" min="1" value="1" class="form-control" required />
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="booking-notes">Ghi chú</label>
-                    <textarea id="booking-notes" class="form-control" placeholder="Ví dụ: ăn chay, nhận phòng sớm..."></textarea>
-                  </div>
-                  <div class="card">
-                    <p class="eyebrow">Tổng tạm tính</p>
-                    <div class="metric-value" id="booking-total-price">0 VND</div>
-                  </div>
-                </form>
+                `}
               </section>
             ` : ''}
 
-            <section class="panel sticky-panel">
+            <section class="panel">
               <div class="section-header">
                 <div>
                   <p class="eyebrow">Bản đồ</p>
@@ -268,6 +398,7 @@ export async function renderSpotDetail(container, id) {
         </section>
       </section>
     `;
+    attachImageFallbacks(container);
 
     const favBtn = document.getElementById('fav-btn');
     if (favBtn) {
@@ -311,94 +442,334 @@ export async function renderSpotDetail(container, id) {
       });
     }
 
-    if (window.currentUser && window.currentUser.role !== 'ADMIN') {
+    if (window.currentUser && window.currentUser.role !== 'ADMIN' && departures.length) {
       const bookingForm = document.getElementById('booking-form');
-      const bookingPackage = document.getElementById('booking-package');
-      const bookingRoom = document.getElementById('booking-room');
-      const bookingGuests = document.getElementById('booking-guests');
-      const bookingRoomCount = document.getElementById('booking-room-count');
-      const bookingTotal = document.getElementById('booking-total-price');
-      const bookingDate = document.getElementById('booking-date');
-      const bookingEndDate = document.getElementById('booking-end-date');
+      const dateGrid = document.getElementById('booking-date-grid');
+      const slotGrid = document.getElementById('booking-slot-grid');
+      const packageSelect = document.getElementById('booking-package');
+      const tourDaysGroup = document.getElementById('booking-tour-days-group');
+      const tourDaysInput = document.getElementById('booking-tour-days');
+      const roomSelect = document.getElementById('booking-room');
+      const roomCountInput = document.getElementById('booking-room-count');
+      const startDisplay = document.getElementById('booking-start-display');
+      const endDisplay = document.getElementById('booking-end-display');
+      const endGroup = document.getElementById('booking-end-group');
+      const endDateInput = document.getElementById('booking-end-date');
+      const guestsInput = document.getElementById('booking-guests');
+      const paymentMethodSelect = document.getElementById('booking-payment-method');
+      const voucherInput = document.getElementById('booking-voucher');
+      const notesInput = document.getElementById('booking-notes');
+      const pickupRequestedInput = document.getElementById('booking-pickup-requested');
+      const pickupAddressGroup = document.getElementById('pickup-address-group');
+      const pickupAddressInput = document.getElementById('booking-pickup-address');
+      const totalNode = document.getElementById('booking-total-price');
+      const policyNote = document.getElementById('booking-policy-note');
+      const dateHintNode = document.getElementById('booking-date-hint');
+      const slotHintNode = document.getElementById('booking-slot-hint');
       const submitButton = document.getElementById('booking-submit-btn');
 
-      const calcTotal = () => {
-        let days = 1;
-        if (bookingDate?.value && bookingEndDate?.value) {
-          const start = new Date(bookingDate.value);
-          const end = new Date(bookingEndDate.value);
-          if (end > start) {
-            days = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-          }
-        }
+      const availableDates = [...new Set(departures.map((departure) => toDateInputValue(departure.start_time)))].sort();
+      let selectedDate = availableDates[0] || '';
+      let selectedDepartureId = null;
 
-        let packageTotal = 0;
-        if (bookingPackage?.value) {
-          const option = bookingPackage.options[bookingPackage.selectedIndex];
-          packageTotal = (parseFloat(option.dataset.price) || 0) * (parseInt(bookingGuests.value, 10) || 1) * days;
-        }
-
-        let roomTotal = 0;
-        if (bookingRoom?.value) {
-          const option = bookingRoom.options[bookingRoom.selectedIndex];
-          roomTotal = (parseFloat(option.dataset.price) || 0) * (parseInt(bookingRoomCount?.value || 1, 10) || 1) * days;
-        }
-
-        bookingTotal.textContent = `${(packageTotal + roomTotal).toLocaleString('vi-VN')} VND`;
-
-        const hasSelection = (bookingPackage && bookingPackage.value) || (bookingRoom && bookingRoom.value);
-        submitButton.disabled = !hasSelection;
-        submitButton.textContent = hasSelection ? 'Xác nhận đặt chỗ' : 'Chọn tour hoặc phòng để đặt chỗ';
+      const getSelectedPackage = () => {
+        if (!packageSelect?.value) return null;
+        return spot.packages.find((item) => String(item.id) === String(packageSelect.value)) || null;
       };
 
-      bookingPackage?.addEventListener('change', calcTotal);
-      bookingGuests?.addEventListener('input', calcTotal);
-      bookingDate?.addEventListener('change', calcTotal);
-      bookingEndDate?.addEventListener('change', calcTotal);
-      bookingRoomCount?.addEventListener('input', calcTotal);
-      bookingRoom?.addEventListener('change', () => {
-        if (bookingRoom.value && bookingRoomCount) {
-          const option = bookingRoom.options[bookingRoom.selectedIndex];
-          const maxQty = parseInt(option.dataset.qty, 10) || 20;
-          bookingRoomCount.max = maxQty;
-          if (parseInt(bookingRoomCount.value, 10) > maxQty) {
-            bookingRoomCount.value = maxQty;
+      const getSelectedRoom = () => {
+        if (!roomSelect?.value) return null;
+        return spot.rooms.find((item) => String(item.id) === String(roomSelect.value)) || null;
+      };
+
+      const getSelectedTourDays = () => {
+        if (!getSelectedPackage()) return 1;
+        return Math.max(parseInt(tourDaysInput?.value || '1', 10) || 1, 1);
+      };
+
+      const getTourEndDate = (selectedDeparture, selectedPackage) => {
+        if (!selectedDeparture) return null;
+        const baseEnd = new Date(selectedDeparture.end_time);
+        if (!selectedPackage) return baseEnd;
+
+        const tourEnd = new Date(baseEnd);
+        tourEnd.setDate(tourEnd.getDate() + Math.max(getSelectedTourDays() - 1, 0));
+        return tourEnd;
+      };
+
+      const getFilteredDepartures = () => departures.filter((departure) => toDateInputValue(departure.start_time) === selectedDate);
+      const getSelectedDeparture = () => departures.find((item) => String(item.id) === String(selectedDepartureId)) || null;
+
+      const renderDateButtons = () => {
+        dateGrid.innerHTML = availableDates.map((dateValue) => `
+          <button
+            type="button"
+            class="booking-choice-button ${dateValue === selectedDate ? 'is-active' : ''}"
+            data-role="departure-date"
+            data-date="${dateValue}"
+          >
+            <span class="booking-choice-meta">${formatCalendarWeekday(dateValue)}</span>
+            <span class="booking-choice-value">${formatCalendarDate(dateValue)}</span>
+          </button>
+        `).join('');
+      };
+
+      const renderSlotButtons = () => {
+        const filtered = getFilteredDepartures();
+        const hasSelectedDeparture = filtered.some((departure) => String(departure.id) === String(selectedDepartureId));
+        selectedDepartureId = hasSelectedDeparture ? selectedDepartureId : (filtered[0]?.id ?? null);
+
+        dateHintNode.textContent = filtered.length
+          ? `Ngày ${formatCalendarDate(selectedDate)} có ${filtered.length} khung giờ khả dụng.`
+          : 'Ngày này hiện chưa có khung giờ khả dụng.';
+
+        slotHintNode.textContent = filtered.length
+          ? 'Bấm vào một slot giờ để khóa lịch trình.'
+          : 'Hãy chọn ngày khác hoặc liên hệ admin để mở thêm lịch.';
+
+        slotGrid.innerHTML = filtered.map((departure) => {
+          const seatsLeft = Math.max(Number(departure.capacity || 0) - Number(departure.booked_count || 0), 0);
+          return `
+            <button
+              type="button"
+              class="booking-choice-button ${String(departure.id) === String(selectedDepartureId) ? 'is-active' : ''}"
+              data-role="departure-slot"
+              data-id="${departure.id}"
+            >
+              <span class="booking-choice-value">${formatTimeRange(departure.start_time, departure.end_time)}</span>
+              <span class="booking-choice-meta">${seatsLeft} chỗ · ${departure.confirmation_type === 'INSTANT' ? 'Xác nhận ngay' : 'Chờ duyệt'}</span>
+            </button>
+          `;
+        }).join('');
+      };
+
+      const syncScheduleFields = () => {
+        const selectedDeparture = getSelectedDeparture();
+        const selectedPackage = getSelectedPackage();
+        const selectedRoom = getSelectedRoom();
+
+        if (!selectedDeparture) {
+          startDisplay.textContent = 'Chưa chọn';
+          endDisplay.textContent = 'Chưa chọn';
+          endDateInput.value = '';
+          endDateInput.min = '';
+          endGroup.style.display = 'none';
+          return;
+        }
+
+        const start = new Date(selectedDeparture.start_time);
+        const tourEndDate = getTourEndDate(selectedDeparture, selectedPackage);
+        startDisplay.textContent = formatDateTimeDisplay(start);
+        endDateInput.min = toDatetimeLocalValue(tourEndDate);
+
+        if (!selectedRoom) {
+          endDateInput.value = toDatetimeLocalValue(tourEndDate);
+          endGroup.style.display = 'none';
+          endDisplay.textContent = formatDateTimeDisplay(tourEndDate);
+          return;
+        }
+
+        endGroup.style.display = 'flex';
+        if (!endDateInput.value || new Date(endDateInput.value) < tourEndDate) {
+          const suggestedEnd = new Date(tourEndDate);
+          suggestedEnd.setDate(suggestedEnd.getDate() + 1);
+          endDateInput.value = toDatetimeLocalValue(suggestedEnd);
+        }
+
+        endDisplay.textContent = formatDateTimeDisplay(endDateInput.value);
+      };
+
+      const updatePolicyNote = () => {
+        const selectedDeparture = getSelectedDeparture();
+        const selectedPackage = getSelectedPackage();
+        const selectedRoom = getSelectedRoom();
+
+        if (!selectedDeparture) {
+          policyNote.textContent = 'Chọn thời gian đi trước khi tạo booking.';
+          return;
+        }
+
+        const availableSeats = Number(selectedDeparture.capacity || 0) - Number(selectedDeparture.booked_count || 0);
+        const confirmationType = selectedDeparture.confirmation_type === 'INSTANT' ? 'Xác nhận ngay' : 'Chờ admin duyệt';
+        const tourDays = getSelectedTourDays();
+        const tourEndDate = getTourEndDate(selectedDeparture, selectedPackage);
+        const scheduleEnd = selectedRoom ? endDateInput.value : tourEndDate;
+        const departureWindow = `Từ ${formatDateTimeDisplay(selectedDeparture.start_time)} đến ${formatDateTimeDisplay(scheduleEnd)}.`;
+        const servicePolicy = selectedPackage
+          ? `Tour ${tourDays} ngày, hủy miễn phí trước ${selectedPackage.free_cancel_before_hours}h.`
+          : selectedRoom
+            ? `Phòng hủy miễn phí trước ${selectedRoom.free_cancel_before_hours}h.`
+            : 'Chọn thêm tour hoặc phòng để hoàn tất booking.';
+
+        policyNote.textContent = `${departureWindow} ${confirmationType}. Còn ${availableSeats} chỗ. ${servicePolicy}`;
+      };
+
+      const togglePickupFields = () => {
+        const selectedPackage = getSelectedPackage();
+        const pickupAvailable = Boolean(selectedPackage?.pickup_included);
+
+        pickupRequestedInput.checked = pickupAvailable ? pickupRequestedInput.checked : false;
+        pickupRequestedInput.disabled = !pickupAvailable;
+        pickupAddressGroup.style.display = pickupAvailable && pickupRequestedInput.checked ? 'block' : 'none';
+      };
+
+      const toggleTourDaysField = () => {
+        const selectedPackage = getSelectedPackage();
+        if (!tourDaysGroup || !tourDaysInput) return;
+
+        tourDaysGroup.style.display = selectedPackage ? 'flex' : 'none';
+        if (!selectedPackage) {
+          tourDaysInput.value = '1';
+        }
+      };
+
+      const calcTotal = () => {
+        syncScheduleFields();
+
+        const selectedDeparture = getSelectedDeparture();
+        const selectedPackage = getSelectedPackage();
+        const selectedRoom = getSelectedRoom();
+        const guests = parseInt(guestsInput?.value || '1', 10) || 1;
+        const tourDays = getSelectedTourDays();
+        const roomCount = parseInt(roomCountInput?.value || '1', 10) || 1;
+        let total = 0;
+
+        if (selectedPackage) {
+          total += Number(selectedPackage.price) * guests * tourDays;
+        }
+
+        if (selectedRoom && endDateInput?.value && selectedDeparture) {
+          const start = new Date(selectedDeparture.start_time);
+          const end = new Date(endDateInput.value);
+          if (end > start) {
+            const nights = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+            total += Number(selectedRoom.price) * roomCount * nights;
           }
         }
+
+        totalNode.textContent = `${total.toLocaleString('vi-VN')} VND`;
+
+        const canSubmit = Boolean(selectedDeparture && (selectedPackage || selectedRoom));
+        submitButton.disabled = !canSubmit;
+        submitButton.textContent = canSubmit ? 'Tạo booking' : 'Chọn lịch và dịch vụ';
+
+        updatePolicyNote();
+        toggleTourDaysField();
+        togglePickupFields();
+      };
+
+      dateGrid.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-role="departure-date"]');
+        if (!button || button.dataset.date === selectedDate) return;
+
+        selectedDate = button.dataset.date;
+        renderDateButtons();
+        renderSlotButtons();
         calcTotal();
       });
 
-      bookingForm?.addEventListener('submit', async (event) => {
+      slotGrid.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-role="departure-slot"]');
+        if (!button || button.dataset.id === String(selectedDepartureId)) return;
+
+        selectedDepartureId = button.dataset.id;
+        renderSlotButtons();
+        calcTotal();
+      });
+
+      packageSelect?.addEventListener('change', calcTotal);
+      tourDaysInput?.addEventListener('input', calcTotal);
+      roomSelect?.addEventListener('change', calcTotal);
+      roomCountInput?.addEventListener('input', calcTotal);
+      endDateInput?.addEventListener('change', calcTotal);
+      guestsInput?.addEventListener('input', calcTotal);
+      paymentMethodSelect?.addEventListener('change', updatePolicyNote);
+      pickupRequestedInput?.addEventListener('change', togglePickupFields);
+
+      bookingForm.addEventListener('submit', async (event) => {
         event.preventDefault();
 
-        const payload = {
-          spot_id: parseInt(id, 10),
-          date: new Date(document.getElementById('booking-date').value).toISOString(),
-          end_date: new Date(document.getElementById('booking-end-date').value).toISOString(),
-          guests: parseInt(bookingGuests.value, 10),
-          notes: document.getElementById('booking-notes').value,
-        };
+        const selectedPackage = getSelectedPackage();
+        const selectedRoom = getSelectedRoom();
+        const selectedDeparture = getSelectedDeparture();
+        const tourEndDate = getTourEndDate(selectedDeparture, selectedPackage);
 
-        if (bookingPackage?.value) payload.package_id = parseInt(bookingPackage.value, 10);
-        if (bookingRoom?.value) {
-          payload.room_id = parseInt(bookingRoom.value, 10);
-          payload.room_count = parseInt(bookingRoomCount?.value || 1, 10);
-        }
-
-        if (!payload.package_id && !payload.room_id) {
+        if (!selectedPackage && !selectedRoom) {
           showToast('Hãy chọn ít nhất một gói tour hoặc hạng phòng.', 'danger');
           return;
         }
 
+        if (!selectedDate) {
+          showToast('Hãy chọn ngày đi.', 'danger');
+          return;
+        }
+
+        if (!selectedDeparture) {
+          showToast('Hãy chọn khung giờ khởi hành.', 'danger');
+          return;
+        }
+
+        if (selectedRoom && !endDateInput?.value) {
+          showToast('Hãy chọn thời gian kết thúc.', 'danger');
+          return;
+        }
+
+        if (selectedRoom && new Date(endDateInput.value) < new Date(tourEndDate)) {
+          showToast('Ngày trả phòng phải sau hoặc bằng thời gian tour kết thúc.', 'danger');
+          return;
+        }
+
+        if (pickupRequestedInput.checked && !pickupAddressInput.value.trim()) {
+          showToast('Hãy nhập địa chỉ pickup.', 'danger');
+          return;
+        }
+
+        const payload = {
+          spot_id: parseInt(id, 10),
+          departure_id: parseInt(selectedDeparture.id, 10),
+          guests: parseInt(guestsInput.value, 10) || 1,
+          payment_method: paymentMethodSelect.value,
+          voucher_code: voucherInput.value.trim() || undefined,
+          notes: notesInput.value.trim() || undefined,
+          pickup_requested: pickupRequestedInput.checked,
+          pickup_address: pickupRequestedInput.checked ? pickupAddressInput.value.trim() : undefined,
+        };
+
+        if (selectedPackage) {
+          payload.package_id = selectedPackage.id;
+          payload.tour_days = getSelectedTourDays();
+        }
+        if (selectedRoom) {
+          payload.room_id = selectedRoom.id;
+          payload.room_count = parseInt(roomCountInput.value, 10) || 1;
+          payload.end_date = new Date(endDateInput.value).toISOString();
+        }
+
         try {
-          await api.createBooking(payload);
-          showToast('Đặt chỗ thành công. Đơn của bạn đang chờ duyệt.');
-          bookingForm.reset();
-          calcTotal();
-        } catch (err) {
-          showToast(err.message, 'danger');
+          const booking = await api.createBooking(payload);
+          const baseMessage = booking.status === 'ACCEPTED'
+            ? 'Booking đã được xác nhận.'
+            : 'Booking đã được tạo và đang chờ xác nhận.';
+          const paymentMessage = booking.payment_method === 'PAY_AT_DESTINATION'
+            ? 'Bạn sẽ thanh toán tại điểm đến.'
+            : booking.payment_method === 'PAY_NOW'
+              ? booking.payment?.due_at
+                ? `Đơn đã được tạo, vui lòng bấm thanh toán để hoàn tất trước ${new Date(booking.payment.due_at).toLocaleString('vi-VN')}.`
+                : 'Đơn đã được tạo, vui lòng bấm thanh toán để hoàn tất.'
+              : booking.payment?.due_at
+                ? `Bạn có thể thanh toán sau trước ${new Date(booking.payment.due_at).toLocaleString('vi-VN')}.`
+                : 'Bạn có thể thanh toán sau trên trang booking.';
+
+          showToast(`${baseMessage} ${paymentMessage}`.trim());
+          window.location.hash = '#/bookings';
+        } catch (error) {
+          showToast(error.message, 'danger');
         }
       });
+
+      renderDateButtons();
+      renderSlotButtons();
+      calcTotal();
     }
 
     if (!MAPBOX_TOKEN) {

@@ -63,6 +63,11 @@ PORT=5000
 DATABASE_URL="mysql://travel_app:travel123@localhost:3306/travel_spot_finder"
 JWT_SECRET="your_super_secret_key"
 MAPBOX_ACCESS_TOKEN="your_mapbox_token"
+APP_BASE_URL="http://localhost:5000"
+CLIENT_BASE_URL="http://localhost:5173"
+VNPAY_TMN_CODE="SIMULATOR"
+VNPAY_HASH_SECRET="replace_with_strong_secret"
+VNPAY_RETURN_URL="http://localhost:5000/api/payments/vnpay/return"
 ```
 
 Ghi chú:
@@ -135,6 +140,14 @@ Frontend đã cấu hình proxy `/api` sang:
 - Reviews: `/api/reviews`
 - Favorites: `/api/favorites`
 - Map: `/api/map/directions`
+- Bookings: `/api/bookings/*`
+- Payments (VNPAY simulator): `/api/payments/vnpay/*`
+
+## Thanh toán VNPAY giả lập
+- Endpoint tạo phiên thanh toán: `POST /api/bookings/:id/pay` với body `{ "provider": "VNPAY" }`
+- Trang giả lập cổng thanh toán: `GET /api/payments/vnpay/simulate`
+- Callback giả lập từ gateway: `GET /api/payments/vnpay/return`
+- Sau khi callback thành công, frontend sẽ tự quay về `#/bookings` và hiển thị trạng thái thanh toán.
 
 ## Tài liệu đi kèm
 - Swagger UI: `http://localhost:5000/api-docs`

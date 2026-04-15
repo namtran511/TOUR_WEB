@@ -6,6 +6,9 @@ const spotInclude = {
   category: true,
   packages: true,
   rooms: true,
+  departures: {
+    orderBy: { start_time: 'asc' }
+  },
   creator: {
     select: {
       id: true,
@@ -90,11 +93,48 @@ const createSpot = async (payload, userId) => {
   await ensureCategoryExists(payload.category_id);
 
   const packagesData = Array.isArray(payload.packages) && payload.packages.length > 0
-    ? { create: payload.packages.map(p => ({ name: p.name, description: p.description, price: p.price })) }
+    ? {
+        create: payload.packages.map((p) => ({
+          name: p.name,
+          description: p.description,
+          price: p.price,
+          duration_minutes: p.duration_minutes ?? null,
+          meeting_point: p.meeting_point || null,
+          pickup_included: p.pickup_included ?? false,
+          pickup_note: p.pickup_note || null,
+          pickup_area: p.pickup_area || null,
+          free_cancel_before_hours: p.free_cancel_before_hours ?? 48,
+          refund_percent_before: p.refund_percent_before ?? 100,
+          refund_percent_after: p.refund_percent_after ?? 0
+        }))
+      }
     : undefined;
 
   const roomsData = Array.isArray(payload.rooms) && payload.rooms.length > 0
-    ? { create: payload.rooms.map(r => ({ name: r.name, description: r.description, price: r.price, quantity: r.quantity })) }
+    ? {
+        create: payload.rooms.map((r) => ({
+          name: r.name,
+          description: r.description,
+          price: r.price,
+          quantity: r.quantity,
+          free_cancel_before_hours: r.free_cancel_before_hours ?? 48,
+          refund_percent_before: r.refund_percent_before ?? 100,
+          refund_percent_after: r.refund_percent_after ?? 0
+        }))
+      }
+    : undefined;
+
+  const departuresData = Array.isArray(payload.departures) && payload.departures.length > 0
+    ? {
+        create: payload.departures.map((d) => ({
+          label: d.label,
+          start_time: new Date(d.start_time),
+          end_time: new Date(d.end_time),
+          capacity: d.capacity,
+          confirmation_type: d.confirmation_type || 'MANUAL',
+          is_active: d.is_active ?? true
+        }))
+      }
     : undefined;
 
   return prisma.spot.create({
@@ -112,7 +152,8 @@ const createSpot = async (payload, userId) => {
       average_rating: payload.average_rating ?? 0,
       created_by: userId,
       ...(packagesData && { packages: packagesData }),
-      ...(roomsData && { rooms: roomsData })
+      ...(roomsData && { rooms: roomsData }),
+      ...(departuresData && { departures: departuresData })
     },
     include: spotInclude
   });
@@ -128,20 +169,57 @@ const updateSpot = async (id, payload) => {
   let packagesData = undefined;
   if (Array.isArray(payload.packages)) {
     await prisma.spotPackage.deleteMany({ where: { spot_id: id } });
-    if(payload.packages.length > 0) {
-        packagesData = {
-          create: payload.packages.map(p => ({ name: p.name, description: p.description, price: p.price }))
-        };
+    if (payload.packages.length > 0) {
+      packagesData = {
+        create: payload.packages.map((p) => ({
+          name: p.name,
+          description: p.description,
+          price: p.price,
+          duration_minutes: p.duration_minutes ?? null,
+          meeting_point: p.meeting_point || null,
+          pickup_included: p.pickup_included ?? false,
+          pickup_note: p.pickup_note || null,
+          pickup_area: p.pickup_area || null,
+          free_cancel_before_hours: p.free_cancel_before_hours ?? 48,
+          refund_percent_before: p.refund_percent_before ?? 100,
+          refund_percent_after: p.refund_percent_after ?? 0
+        }))
+      };
     }
   }
 
   let roomsData = undefined;
   if (Array.isArray(payload.rooms)) {
     await prisma.spotRoom.deleteMany({ where: { spot_id: id } });
-    if(payload.rooms.length > 0) {
-        roomsData = {
-          create: payload.rooms.map(r => ({ name: r.name, description: r.description, price: r.price, quantity: r.quantity }))
-        };
+    if (payload.rooms.length > 0) {
+      roomsData = {
+        create: payload.rooms.map((r) => ({
+          name: r.name,
+          description: r.description,
+          price: r.price,
+          quantity: r.quantity,
+          free_cancel_before_hours: r.free_cancel_before_hours ?? 48,
+          refund_percent_before: r.refund_percent_before ?? 100,
+          refund_percent_after: r.refund_percent_after ?? 0
+        }))
+      };
+    }
+  }
+
+  let departuresData = undefined;
+  if (Array.isArray(payload.departures)) {
+    await prisma.spotDeparture.deleteMany({ where: { spot_id: id } });
+    if (payload.departures.length > 0) {
+      departuresData = {
+        create: payload.departures.map((d) => ({
+          label: d.label,
+          start_time: new Date(d.start_time),
+          end_time: new Date(d.end_time),
+          capacity: d.capacity,
+          confirmation_type: d.confirmation_type || 'MANUAL',
+          is_active: d.is_active ?? true
+        }))
+      };
     }
   }
 
@@ -160,7 +238,8 @@ const updateSpot = async (id, payload) => {
       ...(payload.ticket_price !== undefined && { ticket_price: payload.ticket_price }),
       ...(payload.average_rating !== undefined && { average_rating: payload.average_rating }),
       ...(packagesData && { packages: packagesData }),
-      ...(roomsData && { rooms: roomsData })
+      ...(roomsData && { rooms: roomsData }),
+      ...(departuresData && { departures: departuresData })
     },
     include: spotInclude
   });

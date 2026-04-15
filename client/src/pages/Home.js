@@ -1,12 +1,44 @@
 import { api } from '../api.js';
+import { attachImageFallbacks, resolveImageUrl } from '../image.js';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80';
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
 
+function formatMoney(value, suffix = ' VND') {
+  if (value === null || value === undefined || value === '') return 'Liên hệ';
+  return `${parseInt(value, 10).toLocaleString('vi-VN')}${suffix}`;
+}
+
 function formatRating(spot) {
   return spot.averageRating || spot.average_rating || 'Chưa có';
+}
+
+function getSpotImage(spot) {
+  return resolveImageUrl(spot, FALLBACK_IMAGE);
+}
+
+function truncateText(text, limit = 120) {
+  if (!text) return '';
+  return text.length > limit ? `${text.slice(0, limit).trim()}...` : text;
+}
+
+function getNextDeparture(detail) {
+  const now = Date.now();
+  return (detail.departures || [])
+    .filter((departure) => departure.is_active && new Date(departure.start_time).getTime() > now)
+    .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))[0] || null;
+}
+
+function getStartingPackagePrice(detail) {
+  if (!detail.packages?.length) return null;
+  return Math.min(...detail.packages.map((item) => Number(item.price)));
+}
+
+function getStartingRoomPrice(detail) {
+  if (!detail.rooms?.length) return null;
+  return Math.min(...detail.rooms.map((item) => Number(item.price)));
 }
 
 function renderIllustration() {
@@ -23,6 +55,71 @@ function renderIllustration() {
         <path d="M370 93C388 70 428 70 446 92C463 115 448 150 420 168C390 150 353 118 370 93Z" fill="#C96442"/>
       </svg>
       <p class="caption">Bản đồ, danh sách và bộ lọc được đặt trong một bố cục editorial để hành trình tìm kiếm cảm thấy chậm rãi và rõ ràng hơn.</p>
+    </div>
+  `;
+}
+
+function renderPopupLoadingMarkup(spot) {
+  return `
+    <article class="map-popup-card">
+      <img src="${getSpotImage(spot)}" data-fallback-src="${FALLBACK_IMAGE}" alt="${spot.name}" class="map-popup-media" />
+      <div class="map-popup-body">
+        <div class="chip-row">
+          <span class="chip"><i class='bx bx-map-pin'></i> ${spot.city}</span>
+          <span class="chip"><i class='bx bxs-star'></i> ${formatRating(spot)}</span>
+        </div>
+        <h3 class="map-popup-title">${spot.name}</h3>
+        <p class="map-popup-summary">Đang tải thông tin đặt chỗ...</p>
+      </div>
+    </article>
+  `;
+}
+
+function renderPopupMarkup(detail, fallbackSpot = detail) {
+  const nextDeparture = getNextDeparture(detail);
+  const packagePrice = getStartingPackagePrice(detail);
+  const roomPrice = getStartingRoomPrice(detail);
+  const summaryParts = [];
+
+  if (detail.packages?.length) {
+    summaryParts.push(`${detail.packages.length} gói tour`);
+  }
+
+  if (detail.rooms?.length) {
+    summaryParts.push(`${detail.rooms.length} hạng phòng`);
+  }
+
+  return `
+    <article class="map-popup-card">
+      <img src="${getSpotImage(detail)}" data-fallback-src="${FALLBACK_IMAGE}" alt="${detail.name}" class="map-popup-media" />
+      <div class="map-popup-body">
+        <div class="chip-row">
+          <span class="chip"><i class='bx bx-map-pin'></i> ${detail.city}</span>
+          <span class="chip"><i class='bx bxs-star'></i> ${formatRating(detail)}</span>
+        </div>
+        <h3 class="map-popup-title">${detail.name}</h3>
+        <p class="map-popup-summary">${truncateText(detail.description || fallbackSpot.description || 'Bấm xem chi tiết để chọn lịch khởi hành, tour hoặc phòng phù hợp.', 110)}</p>
+        <div class="map-popup-info">
+          ${packagePrice !== null ? `<p><strong>Tour từ:</strong> ${formatMoney(packagePrice, ' VND / khách / ngày')}</p>` : ''}
+          ${roomPrice !== null ? `<p><strong>Phòng từ:</strong> ${formatMoney(roomPrice, ' VND / đêm')}</p>` : ''}
+          ${packagePrice === null && roomPrice === null && detail.ticket_price ? `<p><strong>Giá tham khảo:</strong> ${formatMoney(detail.ticket_price)}</p>` : ''}
+          ${nextDeparture ? `<p><strong>Khởi hành gần nhất:</strong> ${new Date(nextDeparture.start_time).toLocaleString('vi-VN')}</p>` : '<p><strong>Lịch khởi hành:</strong> Xem trong trang chi tiết</p>'}
+          ${summaryParts.length ? `<p><strong>Dịch vụ:</strong> ${summaryParts.join(' · ')}</p>` : ''}
+        </div>
+        <div class="button-row map-popup-actions">
+          <a href="#/spot/${detail.id}" class="button"><i class='bx bx-calendar-event'></i> Xem lịch & đặt</a>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderSelectionPlaceholder() {
+  return `
+    <div class="map-selection-empty">
+      <p class="eyebrow">Bản đồ đặt chỗ</p>
+      <h3>Chọn một địa danh trên bản đồ.</h3>
+      <p>Khi bấm vào marker, thông tin tour, phòng và nút đặt chỗ sẽ hiện đầy đủ ngay trong khung này.</p>
     </div>
   `;
 }
@@ -88,7 +185,14 @@ export async function renderHome(container) {
           <button id="search-btn" class="button-secondary"><i class='bx bx-search'></i> Lọc kết quả</button>
         </div>
 
-        <div id="home-map" class="map-frame"></div>
+        <div class="map-shell">
+          <div id="home-map" class="map-frame"></div>
+          <div class="map-selection-overlay">
+            <div id="map-selection-card" class="map-selection-card map-selection-placeholder">
+              ${renderSelectionPlaceholder()}
+            </div>
+          </div>
+        </div>
       </section>
 
       <section id="spots-section" class="dark-band">
@@ -106,33 +210,66 @@ export async function renderHome(container) {
   `;
 
   const spotsGrid = document.getElementById('spots-grid');
+  const selectionCard = document.getElementById('map-selection-card');
+  const spotDetailCache = new Map();
   let currentMarkers = [];
   let map = null;
+  let selectedSpotId = null;
 
-  if (!MAPBOX_TOKEN) {
-    document.getElementById('home-map').innerHTML = `
-      <div class="empty-state" style="height:100%; display:grid; place-items:center;">
-        <div>
-          <h3>Thiếu cấu hình Mapbox</h3>
-          <p>Thêm <code>VITE_MAPBOX_TOKEN</code> vào môi trường của client để hiển thị bản đồ.</p>
-        </div>
-      </div>
-    `;
-    spotsGrid.innerHTML = '<div class="loader"></div>';
-    loadSpots();
-    return;
+  function renderSelectionLoading(spot) {
+    selectionCard.className = 'map-selection-card';
+    selectionCard.innerHTML = renderPopupLoadingMarkup(spot);
+    attachImageFallbacks(selectionCard);
   }
 
-  mapboxgl.accessToken = MAPBOX_TOKEN;
-  map = new mapboxgl.Map({
-    container: 'home-map',
-    style: 'mapbox://styles/mapbox/streets-v12',
-    center: [105.8342, 18.0],
-    zoom: 5,
-  });
+  function renderSelectionDetail(detail, fallbackSpot = detail) {
+    selectionCard.className = 'map-selection-card';
+    selectionCard.innerHTML = renderPopupMarkup(detail, fallbackSpot);
+    attachImageFallbacks(selectionCard);
+  }
+
+  function resetSelectionCard() {
+    selectedSpotId = null;
+    selectionCard.className = 'map-selection-card map-selection-placeholder';
+    selectionCard.innerHTML = renderSelectionPlaceholder();
+  }
+
+  async function showSpotSelection(spot) {
+    selectedSpotId = spot.id;
+
+    if (map && spot.longitude && spot.latitude) {
+      map.easeTo({
+        center: [spot.longitude, spot.latitude],
+        offset: [0, 140],
+        duration: 700,
+        essential: true,
+      });
+    }
+
+    if (spotDetailCache.has(spot.id)) {
+      renderSelectionDetail(spotDetailCache.get(spot.id), spot);
+      return;
+    }
+
+    renderSelectionLoading(spot);
+
+    try {
+      const detail = await api.getSpotById(spot.id);
+      spotDetailCache.set(spot.id, detail);
+
+      if (selectedSpotId === spot.id) {
+        renderSelectionDetail(detail, spot);
+      }
+    } catch {
+      if (selectedSpotId === spot.id) {
+        renderSelectionDetail(spot, spot);
+      }
+    }
+  }
 
   async function loadSpots(query = '', sortBy = '', sortOrder = '') {
     spotsGrid.innerHTML = '<div class="loader"></div>';
+    resetSelectionCard();
 
     try {
       const spots = await api.getSpots(query, sortBy, sortOrder);
@@ -158,24 +295,20 @@ export async function renderHome(container) {
           hasValidCoords = true;
           bounds.extend([spot.longitude, spot.latitude]);
 
-          const popup = new mapboxgl.Popup({ offset: 18 }).setHTML(`
-            <div style="padding:4px 2px; color:#141413;">
-              <strong style="display:block; margin-bottom:4px;">${spot.name}</strong>
-              <span style="color:#5e5d59;">${spot.city}</span>
-            </div>
-          `);
-
           const marker = new mapboxgl.Marker({ color: '#c96442' })
             .setLngLat([spot.longitude, spot.latitude])
-            .setPopup(popup)
             .addTo(map);
+
+          marker.getElement().addEventListener('click', () => {
+            void showSpotSelection(spot);
+          });
 
           currentMarkers.push(marker);
         }
 
         return `
           <article class="card spot-card">
-            <img src="${spot.images && spot.images[0] ? spot.images[0] : spot.image_url || FALLBACK_IMAGE}" class="spot-image" alt="${spot.name}" />
+            <img src="${getSpotImage(spot)}" data-fallback-src="${FALLBACK_IMAGE}" class="spot-image" alt="${spot.name}" />
             <div class="spot-info">
               <div class="chip-row">
                 <span class="chip"><i class='bx bx-map-pin'></i> ${spot.city}</span>
@@ -194,6 +327,7 @@ export async function renderHome(container) {
           </article>
         `;
       }).join('');
+      attachImageFallbacks(spotsGrid);
 
       if (map && hasValidCoords) {
         map.fitBounds(bounds, { padding: 60, maxZoom: 13 });
@@ -202,6 +336,28 @@ export async function renderHome(container) {
       spotsGrid.innerHTML = `<div class="error-state" style="grid-column:1/-1;"><p>${error.message}</p></div>`;
     }
   }
+
+  if (!MAPBOX_TOKEN) {
+    document.getElementById('home-map').innerHTML = `
+      <div class="empty-state" style="height:100%; display:grid; place-items:center;">
+        <div>
+          <h3>Thiếu cấu hình Mapbox</h3>
+          <p>Thêm <code>VITE_MAPBOX_TOKEN</code> vào môi trường của client để hiển thị bản đồ.</p>
+        </div>
+      </div>
+    `;
+    spotsGrid.innerHTML = '<div class="loader"></div>';
+    loadSpots();
+    return;
+  }
+
+  mapboxgl.accessToken = MAPBOX_TOKEN;
+  map = new mapboxgl.Map({
+    container: 'home-map',
+    style: 'mapbox://styles/mapbox/streets-v12',
+    center: [105.8342, 18.0],
+    zoom: 5,
+  });
 
   setTimeout(() => map.resize(), 120);
   loadSpots();

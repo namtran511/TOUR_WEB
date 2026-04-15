@@ -34,3 +34,16 @@
 
 ## Map
 - GET `/api/map/directions`
+
+## Bookings
+- POST `/api/bookings`
+- GET `/api/bookings/me`
+- GET `/api/bookings/admin`
+- POST `/api/bookings/:id/pay`
+- POST `/api/bookings/:id/cancel`
+- GET `/api/bookings/:id/ticket`
+- PATCH `/api/bookings/:id/status`
+
+## Payments (VNPAY Simulator)
+- GET `/api/payments/vnpay/simulate`
+- GET `/api/payments/vnpay/return`

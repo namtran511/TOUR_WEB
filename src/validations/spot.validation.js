@@ -15,13 +15,32 @@ const spotBody = z.object({
   packages: z.array(z.object({
     name: z.string().trim().min(1).max(150),
     description: z.string().trim().optional(),
-    price: z.coerce.number().min(0)
+    price: z.coerce.number().min(0),
+    duration_minutes: z.coerce.number().int().positive().optional(),
+    meeting_point: z.string().trim().max(255).optional(),
+    pickup_included: z.coerce.boolean().optional(),
+    pickup_note: z.string().trim().max(255).optional(),
+    pickup_area: z.string().trim().max(255).optional(),
+    free_cancel_before_hours: z.coerce.number().int().min(0).optional(),
+    refund_percent_before: z.coerce.number().int().min(0).max(100).optional(),
+    refund_percent_after: z.coerce.number().int().min(0).max(100).optional()
   })).optional(),
   rooms: z.array(z.object({
     name: z.string().trim().min(1).max(150),
     description: z.string().trim().optional(),
     price: z.coerce.number().min(0),
-    quantity: z.coerce.number().min(0)
+    quantity: z.coerce.number().min(0),
+    free_cancel_before_hours: z.coerce.number().int().min(0).optional(),
+    refund_percent_before: z.coerce.number().int().min(0).max(100).optional(),
+    refund_percent_after: z.coerce.number().int().min(0).max(100).optional()
+  })).optional(),
+  departures: z.array(z.object({
+    label: z.string().trim().min(1).max(120),
+    start_time: z.string().datetime(),
+    end_time: z.string().datetime(),
+    capacity: z.coerce.number().int().positive(),
+    confirmation_type: z.enum(['INSTANT', 'MANUAL']).optional(),
+    is_active: z.coerce.boolean().optional()
   })).optional()
 });
 

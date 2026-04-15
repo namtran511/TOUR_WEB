@@ -7,10 +7,13 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
-    "seed": "node prisma/seed.js",
+    "seed": "node prisma/seed.js && node prisma/seed_packages.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js && node prisma/seed_packages.js"
   },
   "keywords": [
     "nodejs",
