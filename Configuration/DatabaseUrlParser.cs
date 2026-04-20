@@ -1,10 +1,10 @@
-using MySqlConnector;
+using Microsoft.Data.SqlClient;
 
 namespace TravelSpotFinder.Api.Configuration;
 
 public static class DatabaseUrlParser
 {
-    public static string ToMySqlConnectionString(string databaseUrl)
+    public static string ToSqlServerConnectionString(string databaseUrl)
     {
         if (string.IsNullOrWhiteSpace(databaseUrl))
         {
@@ -12,9 +12,16 @@ public static class DatabaseUrlParser
         }
 
         var cleaned = databaseUrl.Trim().Trim('"');
-        if (cleaned.Contains("server=", StringComparison.OrdinalIgnoreCase))
+
+        if (cleaned.Contains("server=", StringComparison.OrdinalIgnoreCase) ||
+            cleaned.Contains("data source=", StringComparison.OrdinalIgnoreCase))
         {
-            return cleaned;
+            var existing = new SqlConnectionStringBuilder(cleaned);
+            if (!existing.Encrypt)
+            {
+                existing.TrustServerCertificate = true;
+            }
+            return existing.ConnectionString;
         }
 
         if (!Uri.TryCreate(cleaned, UriKind.Absolute, out var uri))
@@ -23,15 +30,29 @@ public static class DatabaseUrlParser
         }
 
         var credentials = uri.UserInfo.Split(':', 2, StringSplitOptions.TrimEntries);
-        var builder = new MySqlConnectionStringBuilder
+        var host = uri.Host;
+        var port = uri.Port > 0 ? uri.Port : 1433;
+        var server = port == 1433 ? host : $"{host},{port}";
+
+        var builder = new SqlConnectionStringBuilder
         {
-            Server = uri.Host,
-            Port = (uint)(uri.Port > 0 ? uri.Port : 3306),
-            Database = uri.AbsolutePath.Trim('/'),
-            UserID = credentials.ElementAtOrDefault(0) ?? string.Empty,
-            Password = credentials.Length > 1 ? Uri.UnescapeDataString(credentials[1]) : string.Empty,
-            AllowUserVariables = true
+            DataSource = server,
+            InitialCatalog = uri.AbsolutePath.Trim('/'),
+            TrustServerCertificate = true
         };
+
+        var user = credentials.ElementAtOrDefault(0);
+        var password = credentials.Length > 1 ? Uri.UnescapeDataString(credentials[1]) : string.Empty;
+
+        if (!string.IsNullOrWhiteSpace(user))
+        {
+            builder.UserID = user;
+            builder.Password = password;
+        }
+        else
+        {
+            builder.IntegratedSecurity = true;
+        }
 
         if (!string.IsNullOrWhiteSpace(uri.Query))
         {
@@ -49,10 +70,20 @@ public static class DatabaseUrlParser
                 var key = Uri.UnescapeDataString(parts[0]);
                 var value = Uri.UnescapeDataString(parts[1]);
 
-                if (key.Equals("sslmode", StringComparison.OrdinalIgnoreCase) &&
-                    Enum.TryParse<MySqlSslMode>(value, true, out var sslMode))
+                if (key.Equals("encrypt", StringComparison.OrdinalIgnoreCase) &&
+                    bool.TryParse(value, out var encrypt))
                 {
-                    builder.SslMode = sslMode;
+                    builder.Encrypt = encrypt;
+                }
+                else if (key.Equals("trustservercertificate", StringComparison.OrdinalIgnoreCase) &&
+                         bool.TryParse(value, out var trust))
+                {
+                    builder.TrustServerCertificate = trust;
+                }
+                else if (key.Equals("integratedsecurity", StringComparison.OrdinalIgnoreCase) &&
+                         bool.TryParse(value, out var integrated))
+                {
+                    builder.IntegratedSecurity = integrated;
                 }
             }
         }

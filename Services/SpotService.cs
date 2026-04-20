@@ -188,6 +188,13 @@ public sealed class SpotService
             throw new ApiException("Cannot delete a spot that already has bookings", StatusCodes.Status409Conflict);
         }
 
+        var packages = await _db.spot_packages.Where(item => item.spot_id == id).ToListAsync(cancellationToken);
+        var rooms = await _db.spot_rooms.Where(item => item.spot_id == id).ToListAsync(cancellationToken);
+        var departures = await _db.spot_departures.Where(item => item.spot_id == id).ToListAsync(cancellationToken);
+
+        _db.spot_packages.RemoveRange(packages);
+        _db.spot_rooms.RemoveRange(rooms);
+        _db.spot_departures.RemoveRange(departures);
         _db.spots.Remove(spot);
         await _db.SaveChangesAsync(cancellationToken);
     }

@@ -225,7 +225,7 @@ public sealed class TravelSpotDbContext : DbContext
             entity.HasOne(item => item.spot)
                 .WithMany(item => item.packages)
                 .HasForeignKey(item => item.spot_id)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 
@@ -241,7 +241,7 @@ public sealed class TravelSpotDbContext : DbContext
             entity.HasOne(item => item.spot)
                 .WithMany(item => item.rooms)
                 .HasForeignKey(item => item.spot_id)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 
@@ -258,7 +258,7 @@ public sealed class TravelSpotDbContext : DbContext
             entity.HasOne(item => item.spot)
                 .WithMany(item => item.departures)
                 .HasForeignKey(item => item.spot_id)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 
@@ -311,7 +311,7 @@ public sealed class TravelSpotDbContext : DbContext
             entity.HasOne(item => item.spot)
                 .WithMany(item => item.bookings)
                 .HasForeignKey(item => item.spot_id)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(item => item.package)
                 .WithMany(item => item.bookings)
                 .HasForeignKey(item => item.package_id)

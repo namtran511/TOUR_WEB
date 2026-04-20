@@ -54,9 +54,9 @@ builder.Services.AddCors(options =>
             .AllowAnyMethod());
 });
 
-var connectionString = DatabaseUrlParser.ToMySqlConnectionString(appSettings.database_url);
+var connectionString = DatabaseUrlParser.ToSqlServerConnectionString(appSettings.database_url);
 builder.Services.AddDbContext<TravelSpotDbContext>(options =>
-    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
+    options.UseSqlServer(connectionString));
 
 builder.Services.AddHttpClient();
 builder.Services.AddHttpContextAccessor();
