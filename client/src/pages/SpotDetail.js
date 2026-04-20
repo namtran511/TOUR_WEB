@@ -26,10 +26,8 @@ function toDateInputValue(value) {
 
 function formatCalendarDate(value) {
   if (!value) return '';
-  return new Date(`${value}T00:00:00`).toLocaleDateString('vi-VN', {
-    day: '2-digit',
-    month: '2-digit',
-  });
+  const date = new Date(`${value}T00:00:00`);
+  return `${date.getDate()}-${date.getMonth() + 1}`;
 }
 
 function formatCalendarWeekday(value) {

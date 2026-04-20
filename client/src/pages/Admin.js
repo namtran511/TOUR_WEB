@@ -240,6 +240,7 @@ export async function renderAdmin(container) {
 
   const packageRow = (pkg = {}) => `
     <div class="card package-item">
+      <input type="hidden" class="pkg-id" value="${pkg.id || ''}" />
       <div class="form-grid two">
         <input type="text" class="pkg-name form-control" placeholder="Tên gói" value="${pkg.name || ''}" />
         <input type="number" class="pkg-price form-control" placeholder="Gi" value="${pkg.price || ''}" />
@@ -261,6 +262,7 @@ export async function renderAdmin(container) {
 
   const roomRow = (room = {}) => `
     <div class="card room-item">
+      <input type="hidden" class="room-id" value="${room.id || ''}" />
       <div class="form-grid two">
         <input type="text" class="room-name form-control" placeholder="Tên phòng" value="${room.name || ''}" />
         <input type="number" class="room-price form-control" placeholder="Giá / đêm" value="${room.price || ''}" />
@@ -278,6 +280,7 @@ export async function renderAdmin(container) {
 
   const departureRow = (departure = {}) => `
     <div class="card departure-item">
+      <input type="hidden" class="departure-id" value="${departure.id || ''}" />
       <div class="form-grid two">
         <input type="text" class="departure-label form-control" placeholder="Tên departure" value="${departure.label || ''}" />
         <input type="number" class="departure-capacity form-control" placeholder="Sức chứa" value="${departure.capacity || ''}" />
@@ -536,6 +539,7 @@ export async function renderAdmin(container) {
 
     const id = document.getElementById('spot-id').value;
     const packages = Array.from(document.querySelectorAll('.package-item')).map((row) => ({
+      id: parseInt(row.querySelector('.pkg-id').value, 10) || undefined,
       name: row.querySelector('.pkg-name').value.trim(),
       price: parseFloat(row.querySelector('.pkg-price').value),
       duration_minutes: parseInt(row.querySelector('.pkg-duration').value, 10) || undefined,
@@ -550,6 +554,7 @@ export async function renderAdmin(container) {
     })).filter((pkg) => pkg.name && !Number.isNaN(pkg.price));
 
     const rooms = Array.from(document.querySelectorAll('.room-item')).map((row) => ({
+      id: parseInt(row.querySelector('.room-id').value, 10) || undefined,
       name: row.querySelector('.room-name').value.trim(),
       price: parseFloat(row.querySelector('.room-price').value),
       quantity: parseInt(row.querySelector('.room-qty').value, 10),
@@ -560,6 +565,7 @@ export async function renderAdmin(container) {
     })).filter((room) => room.name && !Number.isNaN(room.price));
 
     const departures = Array.from(document.querySelectorAll('.departure-item')).map((row) => ({
+      id: parseInt(row.querySelector('.departure-id').value, 10) || undefined,
       label: row.querySelector('.departure-label').value.trim(),
       capacity: parseInt(row.querySelector('.departure-capacity').value, 10),
       start_time: row.querySelector('.departure-start').value ? new Date(row.querySelector('.departure-start').value).toISOString() : '',

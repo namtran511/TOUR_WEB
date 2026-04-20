@@ -1,2 +1,0 @@
-ALTER TABLE `bookings`
-  ADD COLUMN `tour_days` INTEGER NOT NULL DEFAULT 1 AFTER `guests`;

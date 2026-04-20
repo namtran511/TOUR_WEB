@@ -1,5 +1,9 @@
-node_modules/
 .env
 uploads/
-.prisma/
-.tmp/
+bin/
+obj/
+.vs/
+*.user
+client/node_modules/
+client/dist/
+.claude/
