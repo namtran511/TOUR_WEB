@@ -271,18 +271,6 @@ public sealed class SpotService
             .Take(safeLimit)
             .ToListAsync(cancellationToken);
 
-        if (userId.HasValue && (!string.IsNullOrWhiteSpace(keyword) || !string.IsNullOrWhiteSpace(city)))
-        {
-            _db.search_histories.Add(new SearchHistory
-            {
-                user_id = userId.Value,
-                keyword = !string.IsNullOrWhiteSpace(keyword) ? keyword.Trim() : city?.Trim(),
-                latitude = null,
-                longitude = null
-            });
-            await _db.SaveChangesAsync(cancellationToken);
-        }
-
         return new
         {
             items = items.Select(item => ResponseMapper.MapSpot(item)).ToList(),

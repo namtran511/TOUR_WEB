@@ -8,7 +8,6 @@ public sealed class Booking
     public int? package_id { get; set; }
     public int? room_id { get; set; }
     public int? departure_id { get; set; }
-    public int? voucher_id { get; set; }
     public DateTime date { get; set; }
     public DateTime end_date { get; set; }
     public int guests { get; set; } = 1;
@@ -41,6 +40,5 @@ public sealed class Booking
     public SpotPackage? package { get; set; }
     public SpotRoom? room { get; set; }
     public SpotDeparture? departure { get; set; }
-    public Voucher? voucher { get; set; }
     public Payment? payment { get; set; }
 }

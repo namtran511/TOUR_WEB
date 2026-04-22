@@ -16,11 +16,9 @@ public sealed class TravelSpotDbContext : DbContext
     public DbSet<Favorite> favorites => Set<Favorite>();
     public DbSet<Review> reviews => Set<Review>();
     public DbSet<SpotImage> spot_images => Set<SpotImage>();
-    public DbSet<SearchHistory> search_histories => Set<SearchHistory>();
     public DbSet<SpotPackage> spot_packages => Set<SpotPackage>();
     public DbSet<SpotRoom> spot_rooms => Set<SpotRoom>();
     public DbSet<SpotDeparture> spot_departures => Set<SpotDeparture>();
-    public DbSet<Voucher> vouchers => Set<Voucher>();
     public DbSet<Booking> bookings => Set<Booking>();
     public DbSet<Payment> payments => Set<Payment>();
 
@@ -34,11 +32,9 @@ public sealed class TravelSpotDbContext : DbContext
         ConfigureFavorite(modelBuilder);
         ConfigureReview(modelBuilder);
         ConfigureSpotImage(modelBuilder);
-        ConfigureSearchHistory(modelBuilder);
         ConfigureSpotPackage(modelBuilder);
         ConfigureSpotRoom(modelBuilder);
         ConfigureSpotDeparture(modelBuilder);
-        ConfigureVoucher(modelBuilder);
         ConfigureBooking(modelBuilder);
         ConfigurePayment(modelBuilder);
     }
@@ -194,22 +190,6 @@ public sealed class TravelSpotDbContext : DbContext
         });
     }
 
-    private static void ConfigureSearchHistory(ModelBuilder modelBuilder)
-    {
-        modelBuilder.Entity<SearchHistory>(entity =>
-        {
-            entity.ToTable("search_histories");
-            entity.HasKey(item => item.id);
-            entity.HasIndex(item => item.user_id);
-            entity.HasIndex(item => item.keyword);
-            entity.Property(item => item.keyword).HasMaxLength(150);
-            entity.HasOne(item => item.user)
-                .WithMany(item => item.searchHistory)
-                .HasForeignKey(item => item.user_id)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-    }
-
     private static void ConfigureSpotPackage(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<SpotPackage>(entity =>
@@ -262,22 +242,6 @@ public sealed class TravelSpotDbContext : DbContext
         });
     }
 
-    private static void ConfigureVoucher(ModelBuilder modelBuilder)
-    {
-        modelBuilder.Entity<Voucher>(entity =>
-        {
-            entity.ToTable("vouchers");
-            entity.HasKey(item => item.id);
-            entity.HasIndex(item => item.code).IsUnique();
-            entity.Property(item => item.code).HasMaxLength(50);
-            entity.Property(item => item.name).HasMaxLength(120);
-            entity.Property(item => item.type).HasConversion<string>();
-            entity.Property(item => item.value).HasPrecision(10, 2);
-            entity.Property(item => item.max_discount).HasPrecision(10, 2);
-            entity.Property(item => item.min_booking_amount).HasPrecision(10, 2);
-        });
-    }
-
     private static void ConfigureBooking(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Booking>(entity =>
@@ -289,7 +253,6 @@ public sealed class TravelSpotDbContext : DbContext
             entity.HasIndex(item => item.package_id);
             entity.HasIndex(item => item.room_id);
             entity.HasIndex(item => item.departure_id);
-            entity.HasIndex(item => item.voucher_id);
             entity.HasIndex(item => item.booking_code).IsUnique();
             entity.HasIndex(item => item.ticket_code).IsUnique();
             entity.Property(item => item.subtotal_price).HasPrecision(12, 2);
@@ -323,10 +286,6 @@ public sealed class TravelSpotDbContext : DbContext
             entity.HasOne(item => item.departure)
                 .WithMany(item => item.bookings)
                 .HasForeignKey(item => item.departure_id)
-                .OnDelete(DeleteBehavior.SetNull);
-            entity.HasOne(item => item.voucher)
-                .WithMany(item => item.bookings)
-                .HasForeignKey(item => item.voucher_id)
                 .OnDelete(DeleteBehavior.SetNull);
         });
     }

@@ -104,45 +104,10 @@ function getPaymentMethodLabel(method) {
   return 'Chưa rõ hình thức';
 }
 
-function consumePaymentResultFromHash() {
-  const hash = window.location.hash || '';
-  const queryIndex = hash.indexOf('?');
-
-  if (queryIndex < 0) {
-    return null;
-  }
-
-  const params = new URLSearchParams(hash.slice(queryIndex + 1));
-  const payment = params.get('payment');
-  if (!payment) {
-    return null;
-  }
-
-  const bookingId = params.get('bookingId');
-  const txnRef = params.get('txnRef');
-  const cleanHash = hash.slice(0, queryIndex);
-  window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${cleanHash}`);
-
-  return {
-    payment,
-    bookingId,
-    txnRef
-  };
-}
-
 export async function renderBookings(container) {
   if (!window.currentUser) {
     window.location.hash = '#/login';
     return;
-  }
-
-  const paymentResult = consumePaymentResultFromHash();
-  if (paymentResult) {
-    if (paymentResult.payment === 'success') {
-      showToast(`Thanh toán VNPAY thành công cho booking #${paymentResult.bookingId || '-'}.`);
-    } else {
-      showToast(`Thanh toán VNPAY thất bại cho booking #${paymentResult.bookingId || '-'}.`, 'danger');
-    }
   }
 
   container.innerHTML = `
@@ -178,7 +143,7 @@ export async function renderBookings(container) {
     listContainer.innerHTML = bookings.map((booking) => {
       const status = getStatusMeta(booking.status);
       const payment = getPaymentMeta(booking);
-      const payButtonLabel = booking.payment?.status === 'FAILED' ? 'Thanh toan lai VNPAY' : 'Thanh toan VNPAY';
+      const payButtonLabel = booking.payment?.status === 'FAILED' ? 'Thanh toán lại' : 'Thanh toán ngay';
 
       return `
         <article class="booking-card">
@@ -223,26 +188,22 @@ export async function renderBookings(container) {
       if (!bookingId) return;
 
       button.dataset.originalLabel = button.textContent;
-      button.disabled = true;
-      button.textContent = 'Đang tạo URL VNPAY...';
 
-      const confirmed = window.confirm('Mở VNPAY sandbox để giả lập thanh toán booking này?');
+      const confirmed = window.confirm('Xác nhận thanh toán booking này?');
       if (!confirmed) {
-        button.disabled = false;
-        button.textContent = button.dataset.originalLabel || 'Thanh toán VNPAY';
         return;
       }
 
-      try {
-        const result = await api.payBooking(bookingId, { provider: 'VNPAY' });
-        if (!result?.payment_url) {
-          throw new Error('Không tạo được đường dẫn thanh toán VNPAY.');
-        }
+      button.disabled = true;
+      button.textContent = 'Đang xử lý...';
 
-        window.location.href = result.payment_url;
+      try {
+        await api.payBooking(bookingId);
+        showToast(`Thanh toán thành công cho booking #${bookingId}.`);
+        await renderBookings(container);
       } catch (error) {
         button.disabled = false;
-        button.textContent = button.dataset.originalLabel || 'Thanh toán VNPAY';
+        button.textContent = button.dataset.originalLabel || 'Thanh toán ngay';
         showToast(error.message, 'danger');
       }
     });

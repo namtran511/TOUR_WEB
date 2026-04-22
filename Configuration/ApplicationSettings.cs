@@ -8,9 +8,6 @@ public sealed class ApplicationSettings
     public string mapbox_access_token { get; init; } = string.Empty;
     public string app_base_url { get; init; } = "http://localhost:5000";
     public string client_base_url { get; init; } = "http://localhost:5173";
-    public string vnpay_tmn_code { get; init; } = "SIMULATOR";
-    public string vnpay_hash_secret { get; init; } = string.Empty;
-    public string vnpay_return_url { get; init; } = "http://localhost:5000/api/payments/vnpay/return";
 
     public static ApplicationSettings From(IConfiguration configuration)
     {
@@ -36,10 +33,7 @@ public sealed class ApplicationSettings
             jwt_secret = configuration["JWT_SECRET"] ?? "change_me_in_real_env",
             mapbox_access_token = configuration["MAPBOX_ACCESS_TOKEN"] ?? string.Empty,
             app_base_url = appBaseUrl,
-            client_base_url = NormalizeUrl(configuration["CLIENT_BASE_URL"], "http://localhost:5173"),
-            vnpay_tmn_code = configuration["VNPAY_TMN_CODE"] ?? "SIMULATOR",
-            vnpay_hash_secret = configuration["VNPAY_HASH_SECRET"] ?? string.Empty,
-            vnpay_return_url = NormalizeUrl(configuration["VNPAY_RETURN_URL"], $"{appBaseUrl}/api/payments/vnpay/return")
+            client_base_url = NormalizeUrl(configuration["CLIENT_BASE_URL"], "http://localhost:5173")
         };
     }
 }

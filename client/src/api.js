@@ -151,14 +151,10 @@ export const api = {
     body: JSON.stringify({ status }),
   }, 'Cập nhật trạng thái thất bại'),
 
-  payBooking: async (id, payload = {}) => {
-    const body = typeof payload === 'string'
-      ? { transaction_code: payload || undefined }
-      : { ...payload };
-
+  payBooking: async (id) => {
     const data = await request(`/bookings/${id}/pay`, {
       method: 'POST',
-      body: JSON.stringify(body),
+      body: JSON.stringify({}),
     }, 'Thanh toán booking thất bại');
     return data.data;
   },

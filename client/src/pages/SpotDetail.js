@@ -349,11 +349,6 @@ export async function renderSpotDetail(container, id) {
                     </div>
 
                     <div class="form-group">
-                      <label class="form-label" for="booking-voucher">Voucher</label>
-                      <input type="text" id="booking-voucher" class="form-control" placeholder="Ví dụ: SUMMER10" />
-                    </div>
-
-                    <div class="form-group">
                       <label class="form-label" for="booking-notes">Ghi chú</label>
                       <textarea id="booking-notes" class="form-control" placeholder="Ví dụ: ăn chay, cần hỗ trợ đặc biệt..."></textarea>
                     </div>
@@ -455,7 +450,6 @@ export async function renderSpotDetail(container, id) {
       const endDateInput = document.getElementById('booking-end-date');
       const guestsInput = document.getElementById('booking-guests');
       const paymentMethodSelect = document.getElementById('booking-payment-method');
-      const voucherInput = document.getElementById('booking-voucher');
       const notesInput = document.getElementById('booking-notes');
       const pickupRequestedInput = document.getElementById('booking-pickup-requested');
       const pickupAddressGroup = document.getElementById('pickup-address-group');
@@ -727,7 +721,6 @@ export async function renderSpotDetail(container, id) {
           departure_id: parseInt(selectedDeparture.id, 10),
           guests: parseInt(guestsInput.value, 10) || 1,
           payment_method: paymentMethodSelect.value,
-          voucher_code: voucherInput.value.trim() || undefined,
           notes: notesInput.value.trim() || undefined,
           pickup_requested: pickupRequestedInput.checked,
           pickup_address: pickupRequestedInput.checked ? pickupAddressInput.value.trim() : undefined,

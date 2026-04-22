@@ -408,7 +408,6 @@ export async function renderAdmin(container) {
         <p>Số khách: ${booking.guests}</p>
         ${booking.package ? `<p>Gói tour: ${booking.package.name}</p>` : ''}
         ${booking.room ? `<p>Ph?ng: ${booking.room.name} x${booking.room_count}</p>` : ''}
-        ${booking.voucher ? `<p>Voucher: ${booking.voucher.code}</p>` : ''}
         ${booking.meeting_point_snapshot ? `<p>Điểm gặp: ${booking.meeting_point_snapshot}</p>` : ''}
         ${booking.pickup_requested ? `<p>Pickup: ${booking.pickup_address || 'Đã yêu cầu'}</p>` : ''}
         <p>Ghi chú: ${booking.notes || 'Khng c'}</p>

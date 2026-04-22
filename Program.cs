@@ -3,7 +3,6 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using TravelSpotFinder.Api.Common;
@@ -115,23 +114,12 @@ builder.Services.AddScoped<ReviewService>();
 builder.Services.AddScoped<FavoriteService>();
 builder.Services.AddScoped<MapService>();
 builder.Services.AddScoped<BookingService>();
-builder.Services.AddScoped<VnpayService>();
-builder.Services.AddScoped<UploadService>();
-builder.Services.AddScoped<SearchHistoryService>();
 builder.Services.AddScoped<DataSeeder>();
 
 var app = builder.Build();
 
 app.UseMiddleware<ApiExceptionMiddleware>();
 app.UseCors();
-
-var uploadsPath = Path.Combine(app.Environment.ContentRootPath, "uploads");
-Directory.CreateDirectory(uploadsPath);
-app.UseStaticFiles(new StaticFileOptions
-{
-    FileProvider = new PhysicalFileProvider(uploadsPath),
-    RequestPath = "/uploads"
-});
 
 app.UseSwagger();
 app.UseSwaggerUI(options =>

@@ -34,9 +34,6 @@ public sealed class create_booking_request : IValidatableObject
 
     public PaymentMethod? payment_method { get; set; }
 
-    [StringLength(50)]
-    public string? voucher_code { get; set; }
-
     public bool? pickup_requested { get; set; }
 
     [StringLength(255)]
@@ -59,9 +56,6 @@ public sealed class update_booking_status_request
 
 public sealed class pay_booking_request
 {
-    [RegularExpression("^VNPAY$", ErrorMessage = "Unsupported payment provider")]
-    public string? provider { get; set; }
-
     [StringLength(80)]
     public string? transaction_code { get; set; }
 }

@@ -31,12 +31,10 @@ public sealed class BookingService
     ];
 
     private readonly TravelSpotDbContext _db;
-    private readonly VnpayService _vnpayService;
 
-    public BookingService(TravelSpotDbContext db, VnpayService vnpayService)
+    public BookingService(TravelSpotDbContext db)
     {
         _db = db;
-        _vnpayService = vnpayService;
     }
 
     public async Task<object> CreateAsync(int userId, create_booking_request request, CancellationToken cancellationToken = default)
@@ -144,38 +142,7 @@ public sealed class BookingService
 
         var packageTotal = packageItem is not null ? packageItem.price * guests * tourDays : 0m;
         var subtotal = RoundPrice(packageTotal + roomTotal);
-
-        Voucher? voucher = null;
-        var discountAmount = 0m;
-        if (!string.IsNullOrWhiteSpace(request.voucher_code))
-        {
-            var voucherCode = request.voucher_code.Trim().ToUpperInvariant();
-            voucher = await _db.vouchers.FirstOrDefaultAsync(item => item.code == voucherCode, cancellationToken);
-
-            if (voucher is null || !voucher.is_active)
-            {
-                throw new ApiException("Voucher is not available", StatusCodes.Status404NotFound);
-            }
-
-            if (voucher.expires_at.HasValue && DateTimeHelpers.EnsureUtc(voucher.expires_at.Value) < DateTimeHelpers.UtcNow())
-            {
-                throw new ApiException("Voucher has expired");
-            }
-
-            if (voucher.usage_limit.HasValue && voucher.used_count >= voucher.usage_limit.Value)
-            {
-                throw new ApiException("Voucher has reached its usage limit");
-            }
-
-            if (voucher.min_booking_amount.HasValue && subtotal < voucher.min_booking_amount.Value)
-            {
-                throw new ApiException($"Voucher requires a minimum subtotal of {voucher.min_booking_amount.Value.ToString("N0", new System.Globalization.CultureInfo("vi-VN"))} VND");
-            }
-
-            discountAmount = CalculateVoucherDiscount(voucher, subtotal);
-        }
-
-        var totalPrice = RoundPrice(subtotal - discountAmount);
+        var totalPrice = subtotal;
         var confirmationType = departure.confirmation_type;
         var bookingStatus = confirmationType == ConfirmationType.INSTANT ? BookingStatus.ACCEPTED : BookingStatus.PENDING;
         var bookingCode = GenerateCode("BK");
@@ -191,14 +158,13 @@ public sealed class BookingService
             package_id = packageItem?.id,
             room_id = roomItem?.id,
             departure_id = departure.id,
-            voucher_id = voucher?.id,
             date = startDate,
             end_date = endDate,
             guests = guests,
             tour_days = tourDays,
             room_count = roomItem is not null ? roomCount : 1,
             subtotal_price = subtotal,
-            discount_amount = discountAmount,
+            discount_amount = 0m,
             total_price = totalPrice,
             status = bookingStatus,
             payment_method = paymentMethod,
@@ -224,15 +190,6 @@ public sealed class BookingService
 
         booking.payment = payment;
         _db.bookings.Add(booking);
-
-        if (voucher is not null)
-        {
-            voucher.used_count += 1;
-            if (voucher.usage_limit.HasValue && voucher.used_count > voucher.usage_limit.Value)
-            {
-                throw new ApiException("Voucher has just reached its usage limit", StatusCodes.Status409Conflict);
-            }
-        }
 
         await _db.SaveChangesAsync(cancellationToken);
         await IssueTicketIfEligibleAsync(booking.id, cancellationToken);
@@ -299,7 +256,6 @@ public sealed class BookingService
                 booking.status = BookingStatus.REJECTED;
                 booking.rejection_reason = "Rejected by admin";
                 await ReleaseDepartureCapacityAsync(booking, cancellationToken);
-                await AdjustVoucherUsageAsync(booking.voucher_id, -1, cancellationToken);
 
                 if (booking.payment?.status == PaymentStatus.PAID)
                 {
@@ -366,104 +322,24 @@ public sealed class BookingService
             throw new ApiException("Payment cannot be restarted for this booking");
         }
 
-        var provider = string.IsNullOrWhiteSpace(request.provider) ? "VNPAY" : request.provider.Trim();
-        if (!string.Equals(provider, "VNPAY", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new ApiException("Unsupported payment provider");
-        }
-
         if (booking.payment_method != PaymentMethod.PAY_NOW && booking.payment_method != PaymentMethod.PAY_LATER)
         {
-            throw new ApiException("VNPAY simulation is only available for online payment methods");
+            throw new ApiException("Online payment is only available for PAY_NOW or PAY_LATER bookings");
         }
 
         var transactionCode = string.IsNullOrWhiteSpace(request.transaction_code)
-            ? GenerateCode("VNPAY")
+            ? GenerateCode("PAY")
             : request.transaction_code.Trim();
 
-        booking.payment.status = PaymentStatus.PENDING;
-        booking.payment.paid_at = null;
+        booking.payment.status = PaymentStatus.PAID;
+        booking.payment.paid_at = DateTimeHelpers.UtcNow();
         booking.payment.transaction_code = transactionCode;
 
+        await IssueTicketIfEligibleAsync(booking.id, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
         var result = await LoadBookingAsync(booking.id, includeUser: false, tracking: false, cancellationToken);
-        return new
-        {
-            booking = ResponseMapper.MapBooking(result!),
-            payment_provider = "VNPAY",
-            payment_url = _vnpayService.CreateSimulationPaymentUrl(result!, transactionCode)
-        };
-    }
-
-    public async Task<Booking> FinalizeVnpayPaymentAsync(int bookingId, string transactionCode, string responseCode, long? amount, CancellationToken cancellationToken = default)
-    {
-        await SyncBookingLifecycleAsync(cancellationToken);
-
-        var booking = await LoadBookingAsync(bookingId, includeUser: false, tracking: true, cancellationToken);
-        if (booking is null)
-        {
-            throw new ApiException("Booking not found", StatusCodes.Status404NotFound);
-        }
-
-        if (booking.payment is null)
-        {
-            throw new ApiException("Payment record not found", StatusCodes.Status404NotFound);
-        }
-
-        if (!string.IsNullOrWhiteSpace(booking.payment.transaction_code) &&
-            !string.IsNullOrWhiteSpace(transactionCode) &&
-            !string.Equals(booking.payment.transaction_code, transactionCode, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new ApiException("Transaction code mismatch");
-        }
-
-        if (amount.HasValue)
-        {
-            var expectedAmount = (long)Math.Round(booking.payment.amount * 100m);
-            if (amount.Value != expectedAmount)
-            {
-                throw new ApiException("Payment amount mismatch");
-            }
-        }
-
-        var isSuccess = string.Equals(responseCode, "00", StringComparison.OrdinalIgnoreCase);
-
-        if (booking.payment.status == PaymentStatus.PAID)
-        {
-            return booking;
-        }
-
-        if (isSuccess)
-        {
-            if (!ActiveBookingStatuses.Contains(booking.status))
-            {
-                throw new ApiException("Booking is no longer payable");
-            }
-
-            if (!AwaitingPaymentStatuses.Contains(booking.payment.status))
-            {
-                throw new ApiException("Payment is no longer awaiting confirmation");
-            }
-
-            booking.payment.status = PaymentStatus.PAID;
-            booking.payment.paid_at = DateTimeHelpers.UtcNow();
-            booking.payment.transaction_code = string.IsNullOrWhiteSpace(booking.payment.transaction_code)
-                ? transactionCode
-                : booking.payment.transaction_code;
-
-            await IssueTicketIfEligibleAsync(booking.id, cancellationToken);
-        }
-        else if (AwaitingPaymentStatuses.Contains(booking.payment.status))
-        {
-            booking.payment.status = PaymentStatus.FAILED;
-            booking.payment.transaction_code = string.IsNullOrWhiteSpace(booking.payment.transaction_code)
-                ? transactionCode
-                : booking.payment.transaction_code;
-        }
-
-        await _db.SaveChangesAsync(cancellationToken);
-        return (await LoadBookingAsync(booking.id, includeUser: false, tracking: false, cancellationToken))!;
+        return ResponseMapper.MapBooking(result!);
     }
 
     public async Task<object> CancelAsync(int bookingId, int userId, string? reason, CancellationToken cancellationToken = default)
@@ -493,7 +369,6 @@ public sealed class BookingService
         booking.refund_amount = refundAmount;
 
         await ReleaseDepartureCapacityAsync(booking, cancellationToken);
-        await AdjustVoucherUsageAsync(booking.voucher_id, -1, cancellationToken);
 
         if (booking.payment?.status == PaymentStatus.PAID)
         {
@@ -572,7 +447,6 @@ public sealed class BookingService
             }
 
             await ReleaseDepartureCapacityAsync(booking, cancellationToken);
-            await AdjustVoucherUsageAsync(booking.voucher_id, -1, cancellationToken);
         }
 
         var paymentExpiredBookings = await BuildBookingQuery(includeUser: false, tracking: true)
@@ -602,7 +476,6 @@ public sealed class BookingService
             booking.payment.status = PaymentStatus.FAILED;
 
             await ReleaseDepartureCapacityAsync(booking, cancellationToken);
-            await AdjustVoucherUsageAsync(booking.voucher_id, -1, cancellationToken);
         }
 
         await _db.bookings
@@ -626,7 +499,6 @@ public sealed class BookingService
             .Include(item => item.package)
             .Include(item => item.room)
             .Include(item => item.departure)
-            .Include(item => item.voucher)
             .Include(item => item.payment)
             .AsSplitQuery();
 
@@ -656,22 +528,6 @@ public sealed class BookingService
         }
 
         departure.booked_count = Math.Max(0, departure.booked_count - booking.guests);
-    }
-
-    private async Task AdjustVoucherUsageAsync(int? voucherId, int delta, CancellationToken cancellationToken)
-    {
-        if (!voucherId.HasValue)
-        {
-            return;
-        }
-
-        var voucher = await _db.vouchers.FirstOrDefaultAsync(item => item.id == voucherId.Value, cancellationToken);
-        if (voucher is null)
-        {
-            return;
-        }
-
-        voucher.used_count = Math.Max(0, voucher.used_count + delta);
     }
 
     private async Task IssueTicketIfEligibleAsync(int bookingId, CancellationToken cancellationToken)
@@ -726,22 +582,6 @@ public sealed class BookingService
         }
 
         return candidate;
-    }
-
-    private static decimal CalculateVoucherDiscount(Voucher voucher, decimal subtotal)
-    {
-        decimal discount = voucher.type switch
-        {
-            VoucherType.PERCENT => subtotal * (voucher.value / 100m),
-            _ => voucher.value
-        };
-
-        if (voucher.max_discount.HasValue)
-        {
-            discount = Math.Min(discount, voucher.max_discount.Value);
-        }
-
-        return RoundPrice(Math.Min(discount, subtotal));
     }
 
     private static decimal CalculateRefundAmount(Booking booking)
