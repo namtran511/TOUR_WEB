@@ -17,7 +17,6 @@ public sealed class DataSeeder
     {
         await SeedUsersAsync(cancellationToken);
         await SeedCategoriesAsync(cancellationToken);
-        await SeedVouchersAsync(cancellationToken);
         await SeedSpotsAsync(cancellationToken);
         await SeedSpotPackagesAndDeparturesAsync(cancellationToken);
     }
@@ -190,62 +189,6 @@ public sealed class DataSeeder
             {
                 existing.description = item.description;
                 existing.icon = item.icon;
-            }
-        }
-
-        await _db.SaveChangesAsync(cancellationToken);
-    }
-
-    private async Task SeedVouchersAsync(CancellationToken cancellationToken)
-    {
-        var vouchers = new[]
-        {
-            new Voucher
-            {
-                code = "SUMMER10",
-                name = "Summer 10%",
-                description = "Giảm 10% cho booking từ 500.000 VND",
-                type = VoucherType.PERCENT,
-                value = 10,
-                max_discount = 300000,
-                min_booking_amount = 500000,
-                usage_limit = 100,
-                expires_at = new DateTime(2026, 12, 31, 23, 59, 59, DateTimeKind.Utc),
-                is_active = true
-            },
-            new Voucher
-            {
-                code = "WELCOME200K",
-                name = "Welcome 200K",
-                description = "Giảm trực tiếp 200.000 VND cho người dùng mới",
-                type = VoucherType.FIXED,
-                value = 200000,
-                max_discount = null,
-                min_booking_amount = 1500000,
-                usage_limit = 50,
-                expires_at = new DateTime(2026, 12, 31, 23, 59, 59, DateTimeKind.Utc),
-                is_active = true
-            }
-        };
-
-        foreach (var item in vouchers)
-        {
-            var existing = await _db.vouchers.FirstOrDefaultAsync(voucher => voucher.code == item.code, cancellationToken);
-            if (existing is null)
-            {
-                _db.vouchers.Add(item);
-            }
-            else
-            {
-                existing.name = item.name;
-                existing.description = item.description;
-                existing.type = item.type;
-                existing.value = item.value;
-                existing.max_discount = item.max_discount;
-                existing.min_booking_amount = item.min_booking_amount;
-                existing.usage_limit = item.usage_limit;
-                existing.expires_at = item.expires_at;
-                existing.is_active = item.is_active;
             }
         }
 

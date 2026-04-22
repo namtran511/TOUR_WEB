@@ -98,25 +98,6 @@ public static class ResponseMapper
             departure.updated_at
         };
 
-    public static object MapVoucher(Voucher voucher)
-        => new
-        {
-            voucher.id,
-            voucher.code,
-            voucher.name,
-            voucher.description,
-            voucher.type,
-            voucher.value,
-            voucher.max_discount,
-            voucher.min_booking_amount,
-            voucher.usage_limit,
-            voucher.used_count,
-            voucher.expires_at,
-            voucher.is_active,
-            voucher.created_at,
-            voucher.updated_at
-        };
-
     public static object MapPayment(Payment payment)
         => new
         {
@@ -270,7 +251,6 @@ public static class ResponseMapper
             booking.package_id,
             booking.room_id,
             booking.departure_id,
-            booking.voucher_id,
             booking.date,
             booking.end_date,
             booking.guests,
@@ -308,7 +288,6 @@ public static class ResponseMapper
             package = booking.package is null ? null : MapSpotPackage(booking.package),
             room = booking.room is null ? null : MapSpotRoom(booking.room),
             departure = booking.departure is null ? null : MapSpotDeparture(booking.departure),
-            voucher = booking.voucher is null ? null : MapVoucher(booking.voucher),
             payment = booking.payment is null ? null : MapPayment(booking.payment),
             user = includeUser && booking.user is not null
                 ? new

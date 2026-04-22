@@ -14,6 +14,5 @@ public sealed class User
     public List<Spot> spots_created { get; set; } = [];
     public List<Favorite> favorites { get; set; } = [];
     public List<Review> reviews { get; set; } = [];
-    public List<SearchHistory> searchHistory { get; set; } = [];
     public List<Booking> bookings { get; set; } = [];
 }

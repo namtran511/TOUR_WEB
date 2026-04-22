@@ -38,9 +38,3 @@ public enum PaymentStatus
     REFUNDED,
     PARTIALLY_REFUNDED
 }
-
-public enum VoucherType
-{
-    PERCENT,
-    FIXED
-}
