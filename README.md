@@ -1,42 +1,59 @@
 # Travel Spot Finder API
 
-Backend của project này đã được chuyển sang `ASP.NET Core 8 + EF Core + MySQL`.
+Backend của project này đang chạy bằng `ASP.NET Core 8 + Entity Framework Core + SQL Server`.
 
-Frontend vẫn là `Vite` trong thư mục `client/`.
+Frontend nằm trong thư mục `client/` và dùng `Vite`. Phần frontend là tùy chọn nếu bạn chỉ muốn chạy API.
 
 ## Stack hiện tại
-- Backend: `ASP.NET Core 8`, `EF Core`, `Pomelo MySQL`
+
+- Backend: `ASP.NET Core 8`
+- ORM: `Entity Framework Core`
+- Database: `SQL Server`
 - Authentication: `JWT`, `BCrypt`
 - API docs: `Swagger UI`
-- Database: `MySQL`
 - Frontend: `Vite`
 - Bản đồ: `Mapbox`
 - Thanh toán giả lập: `VNPAY simulator`
 
 ## Cấu trúc chính
-- `Controllers/`: API controllers ASP.NET Core
+
+- `Controllers/`: API controllers
 - `Services/`: business logic
-- `Data/`: `DbContext`, entities, seeder
+- `Data/`: `DbContext`, entities, migrations, seeder
 - `Dtos/`: request models
-- `database/init.sql`: SQL bootstrap schema MySQL
+- `Configuration/`: cấu hình env, JWT, database URL parser
 - `client/`: frontend Vite
 - `docs/`: tài liệu dự án
 - `postman/`: Postman collection
 
-## Biến môi trường
-Project tiếp tục dùng file [`.env`](./.env) ở root.
+## Yêu cầu cài đặt
 
-Copy file mẫu:
+- .NET 8 SDK
+- SQL Server hoặc SQL Server Express
+- Visual Studio Code Insiders, Visual Studio, hoặc IDE khác hỗ trợ .NET
+- Node.js chỉ cần khi chạy frontend trong `client/`
+
+Nếu chưa có EF Core CLI:
+
+```powershell
+dotnet tool install --global dotnet-ef
+```
+
+## Biến môi trường
+
+Project dùng file `.env` ở root.
+
+Nếu chưa có `.env`, copy file mẫu:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-Nội dung mẫu:
+Ví dụ cấu hình SQL Server Express:
 
 ```env
 PORT=5000
-DATABASE_URL="mysql://travel_app:travel123@localhost:3306/travel_spot_finder"
+DATABASE_URL="Server=localhost\SQLEXPRESS;Database=travel_spot_finder;Trusted_Connection=True;TrustServerCertificate=True"
 JWT_SECRET="your_super_secret_key"
 MAPBOX_ACCESS_TOKEN="your_mapbox_token"
 APP_BASE_URL="http://localhost:5000"
@@ -46,43 +63,71 @@ VNPAY_HASH_SECRET="replace_with_strong_secret"
 VNPAY_RETURN_URL="http://localhost:5000/api/payments/vnpay/return"
 ```
 
-`DATABASE_URL` có thể giữ nguyên format cũ kiểu Prisma (`mysql://...`). Backend ASP.NET Core sẽ tự chuyển sang connection string MySQL.
+Nếu dùng instance SQL Server khác, sửa `DATABASE_URL` cho đúng máy của bạn.
 
 ## Khởi tạo database
-Nếu database chưa có schema, chạy file SQL bootstrap:
+
+Đảm bảo SQL Server đang chạy, sau đó tạo database/schema bằng EF Core migrations:
 
 ```powershell
-mysql -u root -p travel_spot_finder < database/init.sql
+dotnet restore
+dotnet ef database update
 ```
 
-Hoặc import file [`database/init.sql`](./database/init.sql) bằng MySQL Workbench.
+Connection string sẽ được đọc từ biến `DATABASE_URL` trong file `.env`.
 
 ## Seed dữ liệu
-Seeder đã được chuyển sang .NET:
+
+Chạy seeder:
 
 ```powershell
 dotnet run -- --seed
 ```
 
-Seeder sẽ tạo:
+Seeder tạo dữ liệu mẫu, bao gồm:
+
 - Admin: `admin@travelspot.com` / `admin123`
 - User test: `namtest@example.com` / `123456`
-- Category mẫu
-- Voucher mẫu
+- Categories mẫu
+- Vouchers mẫu
 - Packages và departures demo cho các spot hiện có
 
 ## Chạy backend
+
 ```powershell
 dotnet restore
 dotnet build
-dotnet run
+dotnet run --launch-profile http
 ```
 
 Backend mặc định:
+
 - API: `http://localhost:5000`
 - Swagger UI: `http://localhost:5000/api-docs`
 
+## Chạy trong VS Code Insiders
+
+Mở project:
+
+```powershell
+cd C:\Users\namtr\Downloads\TravelSpotFinder-API
+code-insiders .
+```
+
+Trong terminal của VS Code Insiders:
+
+```powershell
+dotnet run --launch-profile http
+```
+
+Sau đó mở:
+
+```text
+http://localhost:5000/api-docs
+```
+
 ## Chạy frontend
+
 Mở terminal khác:
 
 ```powershell
@@ -92,11 +137,13 @@ npm run dev
 ```
 
 Frontend mặc định:
+
 - `http://localhost:5173`
 
-Frontend vẫn gọi backend qua `/api`.
+Frontend gọi backend qua `/api`.
 
 ## Endpoint chính
+
 - Auth: `/api/auth/*`
 - Categories: `/api/categories`
 - Spots: `/api/spots`
@@ -107,15 +154,19 @@ Frontend vẫn gọi backend qua `/api`.
 - Payments: `/api/payments/vnpay/*`
 
 ## VNPAY simulator
+
 - Tạo phiên thanh toán: `POST /api/bookings/{id}/pay`
 - Trang giả lập thanh toán: `GET /api/payments/vnpay/simulate`
 - Callback gateway: `GET /api/payments/vnpay/return`
 
 ## Mapbox
+
 - Backend dùng `MAPBOX_ACCESS_TOKEN`
 - Frontend dùng `client/.env` với `VITE_MAPBOX_TOKEN`
 
-## Ghi chú chuyển đổi
-- Backend chạy chính thức từ [`TravelSpotFinder.Api.csproj`](./TravelSpotFinder.Api.csproj)
-- Response contract `/api/*` được giữ nguyên để frontend hiện tại vẫn dùng được
-- Một số file Node/Prisma cũ vẫn còn trong repo như dữ liệu tham chiếu lịch sử, nhưng không còn là runtime backend chính
+## Ghi chú
+
+- Backend chạy chính thức từ `TravelSpotFinder.Api.csproj`
+- Database runtime hiện tại là SQL Server thông qua `Microsoft.EntityFrameworkCore.SqlServer`
+- Schema được quản lý bằng EF Core migrations trong `Data/Migrations`
+- Node.js chỉ cần cho frontend Vite trong `client/`, không cần cho backend API
